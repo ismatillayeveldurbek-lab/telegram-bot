@@ -337,11 +337,20 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
     )
     kb.row(
         InlineKeyboardButton(text="📁 Export", callback_data="admin_export"),
-        InlineKeyboardButton(text="♻ Reset", callback_data="admin_reset"),
+        InlineKeyboardButton(text="♻ Reset", callback_data="admin_reset_confirm"),
     )
     kb.row(
         InlineKeyboardButton(text="🔓 Open", callback_data="admin_open"),
         InlineKeyboardButton(text="🔒 Close", callback_data="admin_close"),
+    )
+    return kb.as_markup()
+
+
+def reset_confirm_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_reset"),
+        InlineKeyboardButton(text="✅ Ha, o‘chirish", callback_data="admin_reset")
     )
     return kb.as_markup()
 
@@ -656,8 +665,11 @@ async def admin_reset_handler(message: Message):
         await message.answer("Siz admin emassiz.")
         return
 
-    reset_votes()
-    await message.answer("♻ Barcha ovozlar tozalandi.")
+    await message.answer(
+        "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o‘chiriladi.\nDavom etasizmi?",
+        parse_mode="HTML",
+        reply_markup=reset_confirm_keyboard()
+    )
 
 
 # =========================
@@ -715,6 +727,30 @@ async def admin_close_callback(callback: CallbackQuery):
     close_voting()
     await callback.message.answer("🔴 Ovoz berish yopildi.")
     await callback.answer("Voting yopildi!")
+
+
+@dp.callback_query(F.data == "admin_reset_confirm")
+async def admin_reset_confirm_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await callback.message.answer(
+        "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o‘chiriladi.\nDavom etasizmi?",
+        parse_mode="HTML",
+        reply_markup=reset_confirm_keyboard()
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "cancel_reset")
+async def cancel_reset_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await callback.message.answer("❌ Reset bekor qilindi.")
+    await callback.answer("Bekor qilindi")
 
 
 @dp.callback_query(F.data == "admin_reset")

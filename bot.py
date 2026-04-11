@@ -322,7 +322,7 @@ def after_vote_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def back_to_home_keyboard() -> InlineKeyboardMarkup:
+def results_keyboard_user() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_results_user"),
@@ -360,7 +360,7 @@ def reset_confirm_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def admin_back_keyboard() -> InlineKeyboardMarkup:
+def results_keyboard_admin() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_results_admin"),
@@ -369,7 +369,7 @@ def admin_back_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def admin_simple_back_keyboard() -> InlineKeyboardMarkup:
+def admin_only_back_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
@@ -491,7 +491,9 @@ async def go_home_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "help_info")
 async def help_info_handler(callback: CallbackQuery):
-    await safe_edit_message(callback, get_help_text(), back_to_home_keyboard())
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home"))
+    await safe_edit_message(callback, get_help_text(), kb.as_markup())
     await callback.answer()
 
 
@@ -597,7 +599,7 @@ async def show_results_handler(callback: CallbackQuery):
     await safe_edit_message(
         callback,
         get_results_text(),
-        back_to_home_keyboard()
+        results_keyboard_user()
     )
     await callback.answer()
 
@@ -607,7 +609,7 @@ async def refresh_results_user_handler(callback: CallbackQuery):
     await safe_edit_message(
         callback,
         get_results_text(),
-        back_to_home_keyboard()
+        results_keyboard_user()
     )
     await callback.answer("Yangilandi")
 
@@ -617,7 +619,7 @@ async def results_handler(message: Message):
     await message.answer(
         get_results_text(),
         parse_mode="HTML",
-        reply_markup=back_to_home_keyboard()
+        reply_markup=results_keyboard_user()
     )
 
 
@@ -646,7 +648,7 @@ async def admin_users_handler(message: Message):
     await message.answer(
         get_users_text(),
         parse_mode="HTML",
-        reply_markup=admin_simple_back_keyboard()
+        reply_markup=admin_only_back_keyboard()
     )
 
 
@@ -716,7 +718,7 @@ async def admin_results_callback(callback: CallbackQuery):
     await safe_edit_message(
         callback,
         get_results_text(),
-        admin_back_keyboard()
+        results_keyboard_admin()
     )
     await callback.answer()
 
@@ -730,7 +732,7 @@ async def refresh_results_admin_handler(callback: CallbackQuery):
     await safe_edit_message(
         callback,
         get_results_text(),
-        admin_back_keyboard()
+        results_keyboard_admin()
     )
     await callback.answer("Yangilandi")
 
@@ -744,7 +746,7 @@ async def admin_users_callback(callback: CallbackQuery):
     await callback.message.answer(
         get_users_text(),
         parse_mode="HTML",
-        reply_markup=admin_simple_back_keyboard()
+        reply_markup=admin_only_back_keyboard()
     )
     await callback.answer()
 
@@ -845,7 +847,7 @@ async def text_results_handler(message: Message):
     await message.answer(
         get_results_text(),
         parse_mode="HTML",
-        reply_markup=back_to_home_keyboard()
+        reply_markup=results_keyboard_user()
     )
 
 

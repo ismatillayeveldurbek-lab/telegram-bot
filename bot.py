@@ -19,9 +19,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # =========================
 # SOZLAMALAR
 # =========================
-BOT_TOKEN = "BOT_TOKENINGIZNI_BU_YERGA_QOYING"
-CHANNEL_USERNAME = "@kanal_username"
-ADMIN_IDS = [123456789]
+BOT_TOKEN = "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
+CHANNEL_USERNAME = "@botuchun10"
+ADMIN_IDS = [5298063089]
 
 TEACHERS = {
     "irisova_sayora": "Irisova Sayora",

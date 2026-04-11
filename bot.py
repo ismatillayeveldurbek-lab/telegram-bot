@@ -1,7 +1,9 @@
 import asyncio
+import csv
 import logging
-import sqlite3
 import os
+import sqlite3
+from datetime import datetime
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatMemberStatus
@@ -11,6 +13,7 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
+    FSInputFile,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -18,8 +21,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # SOZLAMALAR
 # =========================
 BOT_TOKEN = "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
-CHANNEL_USERNAME = "@botuchun10"   # masalan: @my_channel
-ADMIN_IDS = [5298063089]  # bu yerga admin telegram id yoziladi
+CHANNEL_USERNAME = "@botuchun10"
+ADMIN_IDS = [5298063089]
 
 TEACHERS = {
     "irisova_sayora": "Irisova Sayora",
@@ -36,6 +39,12 @@ DB_NAME = "votes.db"
 logging.basicConfig(level=logging.INFO)
 
 # =========================
+# BOT
+# =========================
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+# =========================
 # BAZA
 # =========================
 conn = sqlite3.connect(DB_NAME)
@@ -46,16 +55,199 @@ CREATE TABLE IF NOT EXISTS votes (
     user_id INTEGER PRIMARY KEY,
     full_name TEXT,
     username TEXT,
-    teacher_key TEXT NOT NULL
+    teacher_key TEXT NOT NULL,
+    voted_at TEXT
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
 )
 """)
 conn.commit()
 
+
 # =========================
-# BOT
+# BAZA YORDAMCHI
 # =========================
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+def get_setting(key: str, default: str = "") -> str:
+    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    return row[0] if row else default
+
+
+def set_setting(key: str, value: str):
+    cursor.execute("""
+        INSERT INTO settings (key, value)
+        VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value=excluded.value
+    """, (key, value))
+    conn.commit()
+
+
+def init_settings():
+    if get_setting("voting_open", "") == "":
+        set_setting("voting_open", "1")
+
+
+init_settings()
+
+
+# =========================
+# FUNKSIYALAR
+# =========================
+def is_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
+
+
+def is_voting_open() -> bool:
+    return get_setting("voting_open", "1") == "1"
+
+
+def open_voting():
+    set_setting("voting_open", "1")
+
+
+def close_voting():
+    set_setting("voting_open", "0")
+
+
+def has_voted(user_id: int) -> bool:
+    cursor.execute("SELECT 1 FROM votes WHERE user_id = ?", (user_id,))
+    return cursor.fetchone() is not None
+
+
+def save_vote(user_id: int, full_name: str, username: str, teacher_key: str):
+    cursor.execute("""
+        INSERT INTO votes (user_id, full_name, username, teacher_key, voted_at)
+        VALUES (?, ?, ?, ?, ?)
+    """, (
+        user_id,
+        full_name,
+        username,
+        teacher_key,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ))
+    conn.commit()
+
+
+def get_total_votes() -> int:
+    cursor.execute("SELECT COUNT(*) FROM votes")
+    return cursor.fetchone()[0]
+
+
+def reset_votes():
+    cursor.execute("DELETE FROM votes")
+    conn.commit()
+
+
+def build_progress_bar(percent: float, length: int = 10) -> str:
+    filled = round((percent / 100) * length)
+    empty = length - filled
+    return "█" * filled + "░" * empty
+
+
+def get_results_text() -> str:
+    total_votes = get_total_votes()
+
+    lines = ["📊 <b>Ovoz berish natijalari</b>\n"]
+
+    for key, name in TEACHERS.items():
+        cursor.execute("SELECT COUNT(*) FROM votes WHERE teacher_key = ?", (key,))
+        count = cursor.fetchone()[0]
+
+        percent = (count / total_votes * 100) if total_votes > 0 else 0
+        bar = build_progress_bar(percent)
+
+        lines.append(
+            f"<b>{name}</b>\n"
+            f"{bar} {percent:.1f}% ({count} ta)\n"
+        )
+
+    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
+
+    if is_voting_open():
+        lines.append("🟢 <b>Holat:</b> Ovoz berish ochiq")
+    else:
+        lines.append("🔴 <b>Holat:</b> Ovoz berish yopiq")
+
+    return "\n".join(lines)
+
+
+def get_users_text() -> str:
+    cursor.execute("""
+        SELECT user_id, full_name, username, teacher_key, voted_at
+        FROM votes
+        ORDER BY voted_at DESC
+    """)
+    rows = cursor.fetchall()
+
+    if not rows:
+        return "👥 Hali hech kim ovoz bermagan."
+
+    lines = [f"👥 <b>Kim kimga ovoz berdi</b>\n\nJami: {len(rows)} ta foydalanuvchi\n"]
+
+    for i, row in enumerate(rows, start=1):
+        user_id, full_name, username, teacher_key, voted_at = row
+        teacher_name = TEACHERS.get(teacher_key, teacher_key)
+
+        line = f"{i}. <b>{full_name or 'Noma’lum'}</b>"
+        if username:
+            line += f" (@{username})"
+        line += f"\n   → {teacher_name}"
+        line += f"\n   → ID: <code>{user_id}</code>"
+        if voted_at:
+            line += f"\n   → {voted_at}"
+        lines.append(line)
+
+    text = "\n\n".join(lines)
+
+    if len(text) > 4000:
+        return text[:4000] + "\n\n... matn uzun bo‘lgani uchun qisqartirildi"
+
+    return text
+
+
+def export_votes_to_csv() -> str:
+    filename = "votes_export.csv"
+
+    cursor.execute("""
+        SELECT user_id, full_name, username, teacher_key, voted_at
+        FROM votes
+        ORDER BY voted_at DESC
+    """)
+    rows = cursor.fetchall()
+
+    with open(filename, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        writer.writerow(["User ID", "Full Name", "Username", "Teacher", "Voted At"])
+
+        for user_id, full_name, username, teacher_key, voted_at in rows:
+            teacher_name = TEACHERS.get(teacher_key, teacher_key)
+            writer.writerow([
+                user_id,
+                full_name or "",
+                username or "",
+                teacher_name,
+                voted_at or ""
+            ])
+
+    return filename
+
+
+async def check_user_subscription(user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in {
+            ChatMemberStatus.CREATOR,
+            ChatMemberStatus.ADMINISTRATOR,
+            ChatMemberStatus.MEMBER,
+        }
+    except Exception as e:
+        logging.error(f"Obunani tekshirishda xatolik: {e}")
+        return False
 
 
 # =========================
@@ -63,7 +255,6 @@ dp = Dispatcher()
 # =========================
 def subscription_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-
     kb.row(
         InlineKeyboardButton(
             text="📢 Kanalga obuna bo‘lish",
@@ -78,11 +269,10 @@ def subscription_keyboard() -> InlineKeyboardMarkup:
     )
     kb.row(
         InlineKeyboardButton(
-            text="📊 Results",
+            text="📊 Natijalarni ko‘rish",
             callback_data="show_results"
         )
     )
-
     return kb.as_markup()
 
 
@@ -92,128 +282,46 @@ def teachers_keyboard() -> InlineKeyboardMarkup:
     for key, name in TEACHERS.items():
         kb.row(
             InlineKeyboardButton(
-                text=name,
+                text=f"🗳 {name}",
                 callback_data=f"vote:{key}"
             )
         )
 
     kb.row(
         InlineKeyboardButton(
-            text="📊 Results",
+            text="📊 Natijalarni ko‘rish",
             callback_data="show_results"
         )
     )
+    return kb.as_markup()
 
+
+def admin_panel_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+
+    kb.row(
+        InlineKeyboardButton(text="📊 Results", callback_data="admin_results"),
+        InlineKeyboardButton(text="👥 Users", callback_data="admin_users"),
+    )
+    kb.row(
+        InlineKeyboardButton(text="📁 Export", callback_data="admin_export"),
+        InlineKeyboardButton(text="♻ Reset", callback_data="admin_reset"),
+    )
+    kb.row(
+        InlineKeyboardButton(text="🔓 Open", callback_data="admin_open"),
+        InlineKeyboardButton(text="🔒 Close", callback_data="admin_close"),
+    )
     return kb.as_markup()
 
 
 # =========================
-# YORDAMCHI FUNKSIYALAR
-# =========================
-def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_IDS
-
-
-def has_voted(user_id: int) -> bool:
-    cursor.execute("SELECT 1 FROM votes WHERE user_id = ?", (user_id,))
-    return cursor.fetchone() is not None
-
-
-def save_vote(user_id: int, full_name: str, username: str, teacher_key: str):
-    cursor.execute(
-        """
-        INSERT INTO votes (user_id, full_name, username, teacher_key)
-        VALUES (?, ?, ?, ?)
-        """,
-        (user_id, full_name, username, teacher_key)
-    )
-    conn.commit()
-
-
-def get_total_votes() -> int:
-    cursor.execute("SELECT COUNT(*) FROM votes")
-    return cursor.fetchone()[0]
-
-
-def get_results_text() -> str:
-    total_votes = get_total_votes()
-
-    lines = ["📊 Ovoz berish natijalari:\n"]
-
-    for key, name in TEACHERS.items():
-        cursor.execute(
-            "SELECT COUNT(*) FROM votes WHERE teacher_key = ?",
-            (key,)
-        )
-        count = cursor.fetchone()[0]
-        percent = (count / total_votes * 100) if total_votes > 0 else 0
-        lines.append(f"• {name}: {count} ta ovoz — {percent:.1f}%")
-
-    lines.append(f"\nJami ovozlar: {total_votes}")
-    return "\n".join(lines)
-
-
-def get_users_text() -> str:
-    cursor.execute("""
-        SELECT user_id, full_name, username, teacher_key
-        FROM votes
-        ORDER BY rowid DESC
-    """)
-    rows = cursor.fetchall()
-
-    if not rows:
-        return "Hali hech kim ovoz bermagan."
-
-    lines = [f"👥 Ovoz bergan foydalanuvchilar soni: {len(rows)}\n"]
-
-    for i, row in enumerate(rows, start=1):
-        user_id, full_name, username, teacher_key = row
-        teacher_name = TEACHERS.get(teacher_key, teacher_key)
-
-        user_line = f"{i}. {full_name or 'Noma’lum'}"
-        if username:
-            user_line += f" (@{username})"
-        user_line += f" → {teacher_name}"
-        user_line += f" | ID: {user_id}"
-
-        lines.append(user_line)
-
-    text = "\n".join(lines)
-
-    # Telegram xabar limiti sababli bo‘lib yuborish mumkin
-    if len(text) > 4000:
-        return text[:4000] + "\n\n... davom etadi"
-
-    return text
-
-
-def reset_votes():
-    cursor.execute("DELETE FROM votes")
-    conn.commit()
-
-
-async def check_user_subscription(user_id: int) -> bool:
-    try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in {
-            ChatMemberStatus.CREATOR,
-            ChatMemberStatus.ADMINISTRATOR,
-            ChatMemberStatus.MEMBER,
-        }
-    except Exception as e:
-        logging.error(f"Subscription tekshirishda xatolik: {e}")
-        return False
-
-
-# =========================
-# HANDLERLAR
+# START
 # =========================
 @dp.message(Command("start"))
 async def start_handler(message: Message):
     user_id = message.from_user.id
 
     subscribed = await check_user_subscription(user_id)
-
     if not subscribed:
         await message.answer(
             "Assalomu alaykum.\n\n"
@@ -224,8 +332,16 @@ async def start_handler(message: Message):
 
     if has_voted(user_id):
         await message.answer(
-            "Siz allaqachon ovoz berib bo‘lgansiz.\n\n"
-            "Natijalarni ko‘rish uchun pastdagi tugmadan foydalaning.",
+            "✅ Siz allaqachon ovoz berib bo‘lgansiz.\n\n"
+            "Natijalarni ko‘rishingiz mumkin.",
+            reply_markup=teachers_keyboard()
+        )
+        return
+
+    if not is_voting_open():
+        await message.answer(
+            "🔴 Hozircha ovoz berish yopilgan.\n\n"
+            "Natijalarni ko‘rishingiz mumkin.",
             reply_markup=teachers_keyboard()
         )
         return
@@ -236,6 +352,9 @@ async def start_handler(message: Message):
     )
 
 
+# =========================
+# OBUNA TEKSHIRISH
+# =========================
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -247,21 +366,33 @@ async def check_subscription_handler(callback: CallbackQuery):
 
     if has_voted(user_id):
         await callback.message.edit_text(
-            "Obuna tasdiqlandi ✅\n\n"
+            "✅ Obuna tasdiqlandi.\n\n"
             "Siz allaqachon ovoz berib bo‘lgansiz.",
             reply_markup=teachers_keyboard()
         )
         await callback.answer()
         return
 
+    if not is_voting_open():
+        await callback.message.edit_text(
+            "✅ Obuna tasdiqlandi.\n\n"
+            "🔴 Hozircha ovoz berish yopilgan.",
+            reply_markup=teachers_keyboard()
+        )
+        await callback.answer()
+        return
+
     await callback.message.edit_text(
-        "Obuna tasdiqlandi ✅\n\n"
+        "✅ Obuna tasdiqlandi.\n\n"
         "Endi o‘qituvchilardan birini tanlang:",
         reply_markup=teachers_keyboard()
     )
     await callback.answer()
 
 
+# =========================
+# OVOZ BERISH
+# =========================
 @dp.callback_query(F.data.startswith("vote:"))
 async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -271,40 +402,63 @@ async def vote_handler(callback: CallbackQuery):
         await callback.answer("Avval kanalga obuna bo‘ling.", show_alert=True)
         return
 
+    if not is_voting_open():
+        await callback.answer("Hozir ovoz berish yopilgan.", show_alert=True)
+        return
+
     if has_voted(user_id):
         await callback.answer("Siz faqat 1 marta ovoz bera olasiz.", show_alert=True)
         return
 
     teacher_key = callback.data.split(":")[1]
-
     if teacher_key not in TEACHERS:
         await callback.answer("Noto‘g‘ri tanlov.", show_alert=True)
         return
 
-    full_name = callback.from_user.full_name
-    username = callback.from_user.username if callback.from_user.username else ""
+    full_name = callback.from_user.full_name or "Noma’lum"
+    username = callback.from_user.username or ""
 
     save_vote(user_id, full_name, username, teacher_key)
 
     await callback.message.edit_text(
-        f"✅ Siz {TEACHERS[teacher_key]} uchun ovoz berdingiz.\n\nRahmat!"
+        f"✅ Siz <b>{TEACHERS[teacher_key]}</b> uchun ovoz berdingiz.\n\nRahmat!",
+        parse_mode="HTML"
     )
     await callback.answer("Ovozingiz qabul qilindi!")
 
 
+# =========================
+# RESULTS
+# =========================
 @dp.callback_query(F.data == "show_results")
 async def show_results_handler(callback: CallbackQuery):
-    await callback.message.answer(get_results_text())
+    await callback.message.answer(get_results_text(), parse_mode="HTML")
     await callback.answer()
 
 
 @dp.message(Command("results"))
-async def admin_results_handler(message: Message):
+async def results_handler(message: Message):
+    await message.answer(get_results_text(), parse_mode="HTML")
+
+
+# =========================
+# ADMIN BUYRUQLAR
+# =========================
+@dp.message(Command("admin"))
+async def admin_panel_handler(message: Message):
     if not is_admin(message.from_user.id):
         await message.answer("Siz admin emassiz.")
         return
 
-    await message.answer(get_results_text())
+    status_text = "🟢 Ochiq" if is_voting_open() else "🔴 Yopiq"
+
+    await message.answer(
+        f"🎛 <b>Admin panel</b>\n\n"
+        f"Voting holati: {status_text}\n"
+        f"Jami ovozlar: {get_total_votes()}",
+        parse_mode="HTML",
+        reply_markup=admin_panel_keyboard()
+    )
 
 
 @dp.message(Command("users"))
@@ -313,22 +467,124 @@ async def admin_users_handler(message: Message):
         await message.answer("Siz admin emassiz.")
         return
 
-    await message.answer(get_users_text())
+    await message.answer(get_users_text(), parse_mode="HTML")
+
+
+@dp.message(Command("export"))
+async def admin_export_handler(message: Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("Siz admin emassiz.")
+        return
+
+    filename = export_votes_to_csv()
+    file = FSInputFile(filename)
+    await message.answer_document(file, caption="📁 Ovozlar CSV fayl ko‘rinishida.")
+
+
+@dp.message(Command("open"))
+async def admin_open_handler(message: Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("Siz admin emassiz.")
+        return
+
+    open_voting()
+    await message.answer("🟢 Ovoz berish ochildi.")
+
+
+@dp.message(Command("close"))
+async def admin_close_handler(message: Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("Siz admin emassiz.")
+        return
+
+    close_voting()
+    await message.answer("🔴 Ovoz berish yopildi.")
 
 
 @dp.message(Command("reset_votes"))
-async def admin_reset_votes_handler(message: Message):
+async def admin_reset_handler(message: Message):
     if not is_admin(message.from_user.id):
         await message.answer("Siz admin emassiz.")
         return
 
     reset_votes()
-    await message.answer("✅ Barcha ovozlar tozalandi.")
+    await message.answer("♻ Barcha ovozlar tozalandi.")
 
 
+# =========================
+# ADMIN CALLBACKLAR
+# =========================
+@dp.callback_query(F.data == "admin_results")
+async def admin_results_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await callback.message.answer(get_results_text(), parse_mode="HTML")
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_users")
+async def admin_users_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await callback.message.answer(get_users_text(), parse_mode="HTML")
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_export")
+async def admin_export_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    filename = export_votes_to_csv()
+    file = FSInputFile(filename)
+    await callback.message.answer_document(file, caption="📁 Ovozlar CSV fayl ko‘rinishida.")
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_open")
+async def admin_open_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    open_voting()
+    await callback.message.answer("🟢 Ovoz berish ochildi.")
+    await callback.answer("Voting ochildi!")
+
+
+@dp.callback_query(F.data == "admin_close")
+async def admin_close_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    close_voting()
+    await callback.message.answer("🔴 Ovoz berish yopildi.")
+    await callback.answer("Voting yopildi!")
+
+
+@dp.callback_query(F.data == "admin_reset")
+async def admin_reset_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    reset_votes()
+    await callback.message.answer("♻ Barcha ovozlar tozalandi.")
+    await callback.answer("Reset qilindi!")
+
+
+# =========================
+# TEXT HANDLER
+# =========================
 @dp.message(F.text.lower() == "results")
 async def text_results_handler(message: Message):
-    await message.answer(get_results_text())
+    await message.answer(get_results_text(), parse_mode="HTML")
 
 
 # =========================

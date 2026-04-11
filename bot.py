@@ -277,14 +277,8 @@ def subscription_keyboard() -> InlineKeyboardMarkup:
         )
     )
     kb.row(
-        InlineKeyboardButton(
-            text="✅ Tekshirish",
-            callback_data="check_subscription"
-        ),
-        InlineKeyboardButton(
-            text="📊 Natijalar",
-            callback_data="show_results"
-        )
+        InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_subscription"),
+        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results")
     )
     return kb.as_markup()
 
@@ -309,10 +303,7 @@ def teachers_keyboard() -> InlineKeyboardMarkup:
         row_buttons = []
         for key, name in items[i:i + 2]:
             row_buttons.append(
-                InlineKeyboardButton(
-                    text=name,
-                    callback_data=f"vote:{key}"
-                )
+                InlineKeyboardButton(text=name, callback_data=f"vote:{key}")
             )
         kb.row(*row_buttons)
 
@@ -325,7 +316,7 @@ def teachers_keyboard() -> InlineKeyboardMarkup:
 def after_vote_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="📊 Natijalarni ko‘rish", callback_data="show_results"),
+        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results"),
         InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
     )
     return kb.as_markup()
@@ -334,7 +325,8 @@ def after_vote_keyboard() -> InlineKeyboardMarkup:
 def back_to_home_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_results_user"),
+        InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home")
     )
     return kb.as_markup()
 
@@ -363,7 +355,24 @@ def reset_confirm_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="✅ Ha, o‘chirish", callback_data="admin_reset")
     )
     kb.row(
-        InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_admin_panel")
+        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
+    )
+    return kb.as_markup()
+
+
+def admin_back_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_results_admin"),
+        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
+    )
+    return kb.as_markup()
+
+
+def admin_simple_back_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
     )
     return kb.as_markup()
 
@@ -476,21 +485,13 @@ async def start_handler(message: Message):
 # =========================
 @dp.callback_query(F.data == "go_home")
 async def go_home_handler(callback: CallbackQuery):
-    await safe_edit_message(
-        callback,
-        get_home_text(),
-        home_keyboard()
-    )
+    await safe_edit_message(callback, get_home_text(), home_keyboard())
     await callback.answer()
 
 
 @dp.callback_query(F.data == "help_info")
 async def help_info_handler(callback: CallbackQuery):
-    await safe_edit_message(
-        callback,
-        get_help_text(),
-        back_to_home_keyboard()
-    )
+    await safe_edit_message(callback, get_help_text(), back_to_home_keyboard())
     await callback.answer()
 
 
@@ -500,37 +501,21 @@ async def go_vote_panel_handler(callback: CallbackQuery):
     subscribed = await check_user_subscription(user_id)
 
     if not subscribed:
-        await safe_edit_message(
-            callback,
-            get_welcome_text(),
-            subscription_keyboard()
-        )
+        await safe_edit_message(callback, get_welcome_text(), subscription_keyboard())
         await callback.answer()
         return
 
     if has_voted(user_id):
-        await safe_edit_message(
-            callback,
-            get_already_voted_text(),
-            home_keyboard()
-        )
+        await safe_edit_message(callback, get_already_voted_text(), home_keyboard())
         await callback.answer()
         return
 
     if not is_voting_open():
-        await safe_edit_message(
-            callback,
-            get_closed_text(),
-            home_keyboard()
-        )
+        await safe_edit_message(callback, get_closed_text(), home_keyboard())
         await callback.answer()
         return
 
-    await safe_edit_message(
-        callback,
-        get_vote_select_text(),
-        teachers_keyboard()
-    )
+    await safe_edit_message(callback, get_vote_select_text(), teachers_keyboard())
     await callback.answer()
 
 
@@ -547,20 +532,12 @@ async def check_subscription_handler(callback: CallbackQuery):
         return
 
     if has_voted(user_id):
-        await safe_edit_message(
-            callback,
-            get_already_voted_text(),
-            home_keyboard()
-        )
+        await safe_edit_message(callback, get_already_voted_text(), home_keyboard())
         await callback.answer()
         return
 
     if not is_voting_open():
-        await safe_edit_message(
-            callback,
-            get_closed_text(),
-            home_keyboard()
-        )
+        await safe_edit_message(callback, get_closed_text(), home_keyboard())
         await callback.answer()
         return
 
@@ -613,16 +590,26 @@ async def vote_handler(callback: CallbackQuery):
 
 
 # =========================
-# RESULTS
+# RESULTS - USER
 # =========================
 @dp.callback_query(F.data == "show_results")
 async def show_results_handler(callback: CallbackQuery):
-    await callback.message.answer(
+    await safe_edit_message(
+        callback,
         get_results_text(),
-        parse_mode="HTML",
-        reply_markup=back_to_home_keyboard()
+        back_to_home_keyboard()
     )
     await callback.answer()
+
+
+@dp.callback_query(F.data == "refresh_results_user")
+async def refresh_results_user_handler(callback: CallbackQuery):
+    await safe_edit_message(
+        callback,
+        get_results_text(),
+        back_to_home_keyboard()
+    )
+    await callback.answer("Yangilandi")
 
 
 @dp.message(Command("results"))
@@ -656,7 +643,11 @@ async def admin_users_handler(message: Message):
         await message.answer("Siz admin emassiz.")
         return
 
-    await message.answer(get_users_text(), parse_mode="HTML")
+    await message.answer(
+        get_users_text(),
+        parse_mode="HTML",
+        reply_markup=admin_simple_back_keyboard()
+    )
 
 
 @dp.message(Command("export"))
@@ -712,11 +703,7 @@ async def back_admin_panel_callback(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await safe_edit_message(
-        callback,
-        get_admin_panel_text(),
-        admin_panel_keyboard()
-    )
+    await safe_edit_message(callback, get_admin_panel_text(), admin_panel_keyboard())
     await callback.answer()
 
 
@@ -726,12 +713,26 @@ async def admin_results_callback(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await callback.message.answer(
+    await safe_edit_message(
+        callback,
         get_results_text(),
-        parse_mode="HTML",
-        reply_markup=back_to_home_keyboard()
+        admin_back_keyboard()
     )
     await callback.answer()
+
+
+@dp.callback_query(F.data == "refresh_results_admin")
+async def refresh_results_admin_handler(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        get_results_text(),
+        admin_back_keyboard()
+    )
+    await callback.answer("Yangilandi")
 
 
 @dp.callback_query(F.data == "admin_users")
@@ -743,7 +744,7 @@ async def admin_users_callback(callback: CallbackQuery):
     await callback.message.answer(
         get_users_text(),
         parse_mode="HTML",
-        reply_markup=back_to_home_keyboard()
+        reply_markup=admin_simple_back_keyboard()
     )
     await callback.answer()
 
@@ -801,9 +802,7 @@ async def admin_reset_confirm_callback(callback: CallbackQuery):
 
     await safe_edit_message(
         callback,
-        "⚠️ <b>Diqqat!</b>\n\n"
-        "Barcha ovozlar o‘chiriladi.\n"
-        "Davom etasizmi?",
+        "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o‘chiriladi.\nDavom etasizmi?",
         reset_confirm_keyboard()
     )
     await callback.answer()

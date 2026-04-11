@@ -19,9 +19,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # =========================
 # SOZLAMALAR
 # =========================
-BOT_TOKEN = "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
-CHANNEL_USERNAME = "@botuchun10"
-ADMIN_IDS = [5298063089]
+BOT_TOKEN = "BOT_TOKENINGIZNI_BU_YERGA_QOYING"
+CHANNEL_USERNAME = "@kanal_username"
+ADMIN_IDS = [123456789]
 
 TEACHERS = {
     "irisova_sayora": "Irisova Sayora",
@@ -98,7 +98,7 @@ init_settings()
 
 
 # =========================
-# FUNKSIYALAR
+# ASOSIY FUNKSIYALAR
 # =========================
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
@@ -167,7 +167,10 @@ def get_results_text() -> str:
         )
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
+    lines.append(
+        f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
+        f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
+    )
     return "\n".join(lines)
 
 
@@ -243,6 +246,25 @@ async def check_user_subscription(user_id: int) -> bool:
         return False
 
 
+async def safe_edit_message(
+    callback: CallbackQuery,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None
+):
+    try:
+        await callback.message.edit_text(
+            text,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+    except Exception:
+        await callback.message.answer(
+            text,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+
+
 # =========================
 # KLAVIATURALAR
 # =========================
@@ -256,13 +278,25 @@ def subscription_keyboard() -> InlineKeyboardMarkup:
     )
     kb.row(
         InlineKeyboardButton(
-            text="✅ Obunani tekshirish",
+            text="✅ Tekshirish",
             callback_data="check_subscription"
         ),
         InlineKeyboardButton(
             text="📊 Natijalar",
             callback_data="show_results"
         )
+    )
+    return kb.as_markup()
+
+
+def home_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="🗳 Ovoz berish", callback_data="go_vote_panel"),
+        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results")
+    )
+    kb.row(
+        InlineKeyboardButton(text="ℹ️ Yordam", callback_data="help_info")
     )
     return kb.as_markup()
 
@@ -283,10 +317,7 @@ def teachers_keyboard() -> InlineKeyboardMarkup:
         kb.row(*row_buttons)
 
     kb.row(
-        InlineKeyboardButton(
-            text="📊 Natijalarni ko‘rish",
-            callback_data="show_results"
-        )
+        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
     )
     return kb.as_markup()
 
@@ -294,37 +325,16 @@ def teachers_keyboard() -> InlineKeyboardMarkup:
 def after_vote_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(
-            text="📊 Natijalarni ko‘rish",
-            callback_data="show_results"
-        )
-    )
-    kb.row(
-        InlineKeyboardButton(
-            text="🏠 Bosh menyu",
-            callback_data="go_home"
-        )
+        InlineKeyboardButton(text="📊 Natijalarni ko‘rish", callback_data="show_results"),
+        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
     )
     return kb.as_markup()
 
 
-def home_keyboard() -> InlineKeyboardMarkup:
+def back_to_home_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(
-            text="🗳 Ovoz berish",
-            callback_data="go_vote_panel"
-        ),
-        InlineKeyboardButton(
-            text="📊 Natijalar",
-            callback_data="show_results"
-        )
-    )
-    kb.row(
-        InlineKeyboardButton(
-            text="ℹ️ Yordam",
-            callback_data="help_info"
-        )
+        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
     )
     return kb.as_markup()
 
@@ -333,15 +343,15 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="📊 Results", callback_data="admin_results"),
-        InlineKeyboardButton(text="👥 Users", callback_data="admin_users"),
+        InlineKeyboardButton(text="👥 Users", callback_data="admin_users")
     )
     kb.row(
         InlineKeyboardButton(text="📁 Export", callback_data="admin_export"),
-        InlineKeyboardButton(text="♻ Reset", callback_data="admin_reset_confirm"),
+        InlineKeyboardButton(text="♻ Reset", callback_data="admin_reset_confirm")
     )
     kb.row(
         InlineKeyboardButton(text="🔓 Open", callback_data="admin_open"),
-        InlineKeyboardButton(text="🔒 Close", callback_data="admin_close"),
+        InlineKeyboardButton(text="🔒 Close", callback_data="admin_close")
     )
     return kb.as_markup()
 
@@ -352,11 +362,14 @@ def reset_confirm_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_reset"),
         InlineKeyboardButton(text="✅ Ha, o‘chirish", callback_data="admin_reset")
     )
+    kb.row(
+        InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_admin_panel")
+    )
     return kb.as_markup()
 
 
 # =========================
-# USER MATNLARI
+# MATNLAR
 # =========================
 def get_welcome_text() -> str:
     return (
@@ -390,6 +403,32 @@ def get_vote_select_text() -> str:
     return (
         "🗳 <b>O‘qituvchini tanlang</b>\n\n"
         "Quyidagi nomzodlardan biriga ovoz bering:"
+    )
+
+
+def get_home_text() -> str:
+    return (
+        "🏠 <b>Bosh menyu</b>\n\n"
+        "Kerakli bo‘limni tanlang:"
+    )
+
+
+def get_help_text() -> str:
+    return (
+        "ℹ️ <b>Yordam</b>\n\n"
+        "• Avval kanalga obuna bo‘ling\n"
+        "• So‘ng obunani tasdiqlang\n"
+        "• Bitta o‘qituvchiga 1 marta ovoz bering\n"
+        "• Natijalarni istalgan payt ko‘rishingiz mumkin"
+    )
+
+
+def get_admin_panel_text() -> str:
+    status_text = "🟢 Ochiq" if is_voting_open() else "🔴 Yopiq"
+    return (
+        f"🎛 <b>Admin panel</b>\n\n"
+        f"Voting holati: {status_text}\n"
+        f"Jami ovozlar: {get_total_votes()}"
     )
 
 
@@ -437,24 +476,20 @@ async def start_handler(message: Message):
 # =========================
 @dp.callback_query(F.data == "go_home")
 async def go_home_handler(callback: CallbackQuery):
-    await callback.message.answer(
-        "🏠 <b>Bosh menyu</b>\n\nKerakli bo‘limni tanlang:",
-        parse_mode="HTML",
-        reply_markup=home_keyboard()
+    await safe_edit_message(
+        callback,
+        get_home_text(),
+        home_keyboard()
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data == "help_info")
 async def help_info_handler(callback: CallbackQuery):
-    await callback.message.answer(
-        "ℹ️ <b>Yordam</b>\n\n"
-        "• Avval kanalga obuna bo‘ling\n"
-        "• So‘ng obunani tasdiqlang\n"
-        "• Bitta o‘qituvchiga 1 marta ovoz bering\n"
-        "• Natijalarni istalgan payt ko‘rishingiz mumkin",
-        parse_mode="HTML",
-        reply_markup=home_keyboard()
+    await safe_edit_message(
+        callback,
+        get_help_text(),
+        back_to_home_keyboard()
     )
     await callback.answer()
 
@@ -465,36 +500,36 @@ async def go_vote_panel_handler(callback: CallbackQuery):
     subscribed = await check_user_subscription(user_id)
 
     if not subscribed:
-        await callback.message.answer(
+        await safe_edit_message(
+            callback,
             get_welcome_text(),
-            parse_mode="HTML",
-            reply_markup=subscription_keyboard()
+            subscription_keyboard()
         )
         await callback.answer()
         return
 
     if has_voted(user_id):
-        await callback.message.answer(
+        await safe_edit_message(
+            callback,
             get_already_voted_text(),
-            parse_mode="HTML",
-            reply_markup=home_keyboard()
+            home_keyboard()
         )
         await callback.answer()
         return
 
     if not is_voting_open():
-        await callback.message.answer(
+        await safe_edit_message(
+            callback,
             get_closed_text(),
-            parse_mode="HTML",
-            reply_markup=home_keyboard()
+            home_keyboard()
         )
         await callback.answer()
         return
 
-    await callback.message.answer(
+    await safe_edit_message(
+        callback,
         get_vote_select_text(),
-        parse_mode="HTML",
-        reply_markup=teachers_keyboard()
+        teachers_keyboard()
     )
     await callback.answer()
 
@@ -512,27 +547,27 @@ async def check_subscription_handler(callback: CallbackQuery):
         return
 
     if has_voted(user_id):
-        await callback.message.edit_text(
+        await safe_edit_message(
+            callback,
             get_already_voted_text(),
-            parse_mode="HTML",
-            reply_markup=home_keyboard()
+            home_keyboard()
         )
         await callback.answer()
         return
 
     if not is_voting_open():
-        await callback.message.edit_text(
+        await safe_edit_message(
+            callback,
             get_closed_text(),
-            parse_mode="HTML",
-            reply_markup=home_keyboard()
+            home_keyboard()
         )
         await callback.answer()
         return
 
-    await callback.message.edit_text(
+    await safe_edit_message(
+        callback,
         "✅ <b>Obuna tasdiqlandi</b>\n\nEndi o‘qituvchini tanlang:",
-        parse_mode="HTML",
-        reply_markup=teachers_keyboard()
+        teachers_keyboard()
     )
     await callback.answer()
 
@@ -567,12 +602,12 @@ async def vote_handler(callback: CallbackQuery):
 
     save_vote(user_id, full_name, username, teacher_key)
 
-    await callback.message.edit_text(
+    await safe_edit_message(
+        callback,
         f"✅ <b>Ovoz muvaffaqiyatli qabul qilindi</b>\n\n"
         f"👤 <b>Tanlovingiz:</b> {TEACHERS[teacher_key]}\n\n"
         f"Rahmat, sizning ovozingiz saqlandi.",
-        parse_mode="HTML",
-        reply_markup=after_vote_keyboard()
+        after_vote_keyboard()
     )
     await callback.answer("Ovozingiz qabul qilindi!")
 
@@ -585,7 +620,7 @@ async def show_results_handler(callback: CallbackQuery):
     await callback.message.answer(
         get_results_text(),
         parse_mode="HTML",
-        reply_markup=home_keyboard()
+        reply_markup=back_to_home_keyboard()
     )
     await callback.answer()
 
@@ -595,7 +630,7 @@ async def results_handler(message: Message):
     await message.answer(
         get_results_text(),
         parse_mode="HTML",
-        reply_markup=home_keyboard()
+        reply_markup=back_to_home_keyboard()
     )
 
 
@@ -608,12 +643,8 @@ async def admin_panel_handler(message: Message):
         await message.answer("Siz admin emassiz.")
         return
 
-    status_text = "🟢 Ochiq" if is_voting_open() else "🔴 Yopiq"
-
     await message.answer(
-        f"🎛 <b>Admin panel</b>\n\n"
-        f"Voting holati: {status_text}\n"
-        f"Jami ovozlar: {get_total_votes()}",
+        get_admin_panel_text(),
         parse_mode="HTML",
         reply_markup=admin_panel_keyboard()
     )
@@ -675,13 +706,31 @@ async def admin_reset_handler(message: Message):
 # =========================
 # ADMIN CALLBACKLAR
 # =========================
+@dp.callback_query(F.data == "back_admin_panel")
+async def back_admin_panel_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        get_admin_panel_text(),
+        admin_panel_keyboard()
+    )
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "admin_results")
 async def admin_results_callback(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await callback.message.answer(get_results_text(), parse_mode="HTML")
+    await callback.message.answer(
+        get_results_text(),
+        parse_mode="HTML",
+        reply_markup=back_to_home_keyboard()
+    )
     await callback.answer()
 
 
@@ -691,7 +740,11 @@ async def admin_users_callback(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await callback.message.answer(get_users_text(), parse_mode="HTML")
+    await callback.message.answer(
+        get_users_text(),
+        parse_mode="HTML",
+        reply_markup=back_to_home_keyboard()
+    )
     await callback.answer()
 
 
@@ -703,7 +756,10 @@ async def admin_export_callback(callback: CallbackQuery):
 
     filename = export_votes_to_csv()
     file = FSInputFile(filename)
-    await callback.message.answer_document(file, caption="📁 Ovozlar CSV fayl ko‘rinishida.")
+    await callback.message.answer_document(
+        file,
+        caption="📁 Ovozlar CSV fayl ko‘rinishida."
+    )
     await callback.answer()
 
 
@@ -714,7 +770,11 @@ async def admin_open_callback(callback: CallbackQuery):
         return
 
     open_voting()
-    await callback.message.answer("🟢 Ovoz berish ochildi.")
+    await safe_edit_message(
+        callback,
+        "🟢 <b>Ovoz berish ochildi</b>\n\nAdmin panel yangilandi.",
+        admin_panel_keyboard()
+    )
     await callback.answer("Voting ochildi!")
 
 
@@ -725,7 +785,11 @@ async def admin_close_callback(callback: CallbackQuery):
         return
 
     close_voting()
-    await callback.message.answer("🔴 Ovoz berish yopildi.")
+    await safe_edit_message(
+        callback,
+        "🔴 <b>Ovoz berish yopildi</b>\n\nAdmin panel yangilandi.",
+        admin_panel_keyboard()
+    )
     await callback.answer("Voting yopildi!")
 
 
@@ -735,10 +799,12 @@ async def admin_reset_confirm_callback(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await callback.message.answer(
-        "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o‘chiriladi.\nDavom etasizmi?",
-        parse_mode="HTML",
-        reply_markup=reset_confirm_keyboard()
+    await safe_edit_message(
+        callback,
+        "⚠️ <b>Diqqat!</b>\n\n"
+        "Barcha ovozlar o‘chiriladi.\n"
+        "Davom etasizmi?",
+        reset_confirm_keyboard()
     )
     await callback.answer()
 
@@ -749,7 +815,11 @@ async def cancel_reset_callback(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await callback.message.answer("❌ Reset bekor qilindi.")
+    await safe_edit_message(
+        callback,
+        "❌ <b>Reset bekor qilindi</b>\n\nHech qanday o‘zgarish qilinmadi.",
+        admin_panel_keyboard()
+    )
     await callback.answer("Bekor qilindi")
 
 
@@ -760,7 +830,11 @@ async def admin_reset_callback(callback: CallbackQuery):
         return
 
     reset_votes()
-    await callback.message.answer("♻ Barcha ovozlar tozalandi.")
+    await safe_edit_message(
+        callback,
+        "♻ <b>Barcha ovozlar tozalandi</b>\n\nAdmin panel yangilandi.",
+        admin_panel_keyboard()
+    )
     await callback.answer("Reset qilindi!")
 
 
@@ -772,7 +846,7 @@ async def text_results_handler(message: Message):
     await message.answer(
         get_results_text(),
         parse_mode="HTML",
-        reply_markup=home_keyboard()
+        reply_markup=back_to_home_keyboard()
     )
 
 

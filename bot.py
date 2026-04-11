@@ -1,7 +1,6 @@
 import asyncio
 import csv
 import logging
-import os
 import sqlite3
 from datetime import datetime
 
@@ -20,9 +19,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # =========================
 # SOZLAMALAR
 # =========================
-BOT_TOKEN = "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
-CHANNEL_USERNAME = "@botuchun10"
-ADMIN_IDS = [5298063089]
+BOT_TOKEN = "BOT_TOKENINGIZNI_BU_YERGA_QOYING"
+CHANNEL_USERNAME = "@kanal_username"
+ADMIN_IDS = [123456789]
 
 TEACHERS = {
     "irisova_sayora": "Irisova Sayora",
@@ -33,14 +32,8 @@ TEACHERS = {
 
 DB_NAME = "votes.db"
 
-# =========================
-# LOGGING
-# =========================
 logging.basicConfig(level=logging.INFO)
 
-# =========================
-# BOT
-# =========================
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -72,6 +65,14 @@ conn.commit()
 # =========================
 # BAZA YORDAMCHI
 # =========================
+def ensure_column_exists():
+    cursor.execute("PRAGMA table_info(votes)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if "voted_at" not in columns:
+        cursor.execute("ALTER TABLE votes ADD COLUMN voted_at TEXT")
+        conn.commit()
+
+
 def get_setting(key: str, default: str = "") -> str:
     cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
     row = cursor.fetchone()
@@ -92,6 +93,7 @@ def init_settings():
         set_setting("voting_open", "1")
 
 
+ensure_column_exists()
 init_settings()
 
 
@@ -151,28 +153,21 @@ def build_progress_bar(percent: float, length: int = 10) -> str:
 
 def get_results_text() -> str:
     total_votes = get_total_votes()
-
     lines = ["📊 <b>Ovoz berish natijalari</b>\n"]
 
     for key, name in TEACHERS.items():
         cursor.execute("SELECT COUNT(*) FROM votes WHERE teacher_key = ?", (key,))
         count = cursor.fetchone()[0]
-
         percent = (count / total_votes * 100) if total_votes > 0 else 0
         bar = build_progress_bar(percent)
 
         lines.append(
-            f"<b>{name}</b>\n"
-            f"{bar} {percent:.1f}% ({count} ta)\n"
+            f"👩‍🏫 <b>{name}</b>\n"
+            f"{bar} {percent:.1f}% | {count} ta\n"
         )
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-
-    if is_voting_open():
-        lines.append("🟢 <b>Holat:</b> Ovoz berish ochiq")
-    else:
-        lines.append("🔴 <b>Holat:</b> Ovoz berish yopiq")
-
+    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
     return "\n".join(lines)
 
 
@@ -203,10 +198,8 @@ def get_users_text() -> str:
         lines.append(line)
 
     text = "\n\n".join(lines)
-
     if len(text) > 4000:
         return text[:4000] + "\n\n... matn uzun bo‘lgani uchun qisqartirildi"
-
     return text
 
 
@@ -257,7 +250,7 @@ def subscription_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(
-            text="📢 Kanalga obuna bo‘lish",
+            text="📢 Obuna bo‘lish",
             url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
         )
     )
@@ -265,11 +258,9 @@ def subscription_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="✅ Obunani tekshirish",
             callback_data="check_subscription"
-        )
-    )
-    kb.row(
+        ),
         InlineKeyboardButton(
-            text="📊 Natijalarni ko‘rish",
+            text="📊 Natijalar",
             callback_data="show_results"
         )
     )
@@ -279,13 +270,17 @@ def subscription_keyboard() -> InlineKeyboardMarkup:
 def teachers_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
 
-    for key, name in TEACHERS.items():
-        kb.row(
-            InlineKeyboardButton(
-                text=f"🗳 {name}",
-                callback_data=f"vote:{key}"
+    items = list(TEACHERS.items())
+    for i in range(0, len(items), 2):
+        row_buttons = []
+        for key, name in items[i:i + 2]:
+            row_buttons.append(
+                InlineKeyboardButton(
+                    text=name,
+                    callback_data=f"vote:{key}"
+                )
             )
-        )
+        kb.row(*row_buttons)
 
     kb.row(
         InlineKeyboardButton(
@@ -296,9 +291,46 @@ def teachers_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def after_vote_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(
+            text="📊 Natijalarni ko‘rish",
+            callback_data="show_results"
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
+            text="🏠 Bosh menyu",
+            callback_data="go_home"
+        )
+    )
+    return kb.as_markup()
+
+
+def home_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(
+            text="🗳 Ovoz berish",
+            callback_data="go_vote_panel"
+        ),
+        InlineKeyboardButton(
+            text="📊 Natijalar",
+            callback_data="show_results"
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
+            text="ℹ️ Yordam",
+            callback_data="help_info"
+        )
+    )
+    return kb.as_markup()
+
+
 def admin_panel_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-
     kb.row(
         InlineKeyboardButton(text="📊 Results", callback_data="admin_results"),
         InlineKeyboardButton(text="👥 Users", callback_data="admin_users"),
@@ -315,41 +347,147 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
 
 
 # =========================
+# USER MATNLARI
+# =========================
+def get_welcome_text() -> str:
+    return (
+        "🎓 <b>Ovoz berish botiga xush kelibsiz!</b>\n\n"
+        "Quyidagi bosqichlarni bajaring:\n"
+        "1. Kanalga obuna bo‘ling\n"
+        "2. Obunani tasdiqlang\n"
+        "3. O‘qituvchini tanlang\n"
+        "4. Natijalarni ko‘ring\n\n"
+        "👇 Davom etish uchun tugmalardan foydalaning."
+    )
+
+
+def get_already_voted_text() -> str:
+    return (
+        "✅ <b>Siz allaqachon ovoz berib bo‘lgansiz</b>\n\n"
+        "Qayta ovoz berish mumkin emas.\n"
+        "📊 Natijalarni ko‘rishingiz mumkin."
+    )
+
+
+def get_closed_text() -> str:
+    return (
+        "🔒 <b>Ovoz berish hozircha yopilgan</b>\n\n"
+        "Admin tomonidan ovoz berish vaqtincha to‘xtatilgan.\n"
+        "📊 Siz natijalarni ko‘rishingiz mumkin."
+    )
+
+
+def get_vote_select_text() -> str:
+    return (
+        "🗳 <b>O‘qituvchini tanlang</b>\n\n"
+        "Quyidagi nomzodlardan biriga ovoz bering:"
+    )
+
+
+# =========================
 # START
 # =========================
 @dp.message(Command("start"))
 async def start_handler(message: Message):
     user_id = message.from_user.id
-
     subscribed = await check_user_subscription(user_id)
+
     if not subscribed:
         await message.answer(
-            "Assalomu alaykum.\n\n"
-            "Botdan foydalanish uchun avval kanalga obuna bo‘ling.",
+            get_welcome_text(),
+            parse_mode="HTML",
             reply_markup=subscription_keyboard()
         )
         return
 
     if has_voted(user_id):
         await message.answer(
-            "✅ Siz allaqachon ovoz berib bo‘lgansiz.\n\n"
-            "Natijalarni ko‘rishingiz mumkin.",
-            reply_markup=teachers_keyboard()
+            get_already_voted_text(),
+            parse_mode="HTML",
+            reply_markup=home_keyboard()
         )
         return
 
     if not is_voting_open():
         await message.answer(
-            "🔴 Hozircha ovoz berish yopilgan.\n\n"
-            "Natijalarni ko‘rishingiz mumkin.",
-            reply_markup=teachers_keyboard()
+            get_closed_text(),
+            parse_mode="HTML",
+            reply_markup=home_keyboard()
         )
         return
 
     await message.answer(
-        "Quyidagi o‘qituvchilardan birini tanlang:",
+        get_vote_select_text(),
+        parse_mode="HTML",
         reply_markup=teachers_keyboard()
     )
+
+
+# =========================
+# USER CALLBACKLAR
+# =========================
+@dp.callback_query(F.data == "go_home")
+async def go_home_handler(callback: CallbackQuery):
+    await callback.message.answer(
+        "🏠 <b>Bosh menyu</b>\n\nKerakli bo‘limni tanlang:",
+        parse_mode="HTML",
+        reply_markup=home_keyboard()
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "help_info")
+async def help_info_handler(callback: CallbackQuery):
+    await callback.message.answer(
+        "ℹ️ <b>Yordam</b>\n\n"
+        "• Avval kanalga obuna bo‘ling\n"
+        "• So‘ng obunani tasdiqlang\n"
+        "• Bitta o‘qituvchiga 1 marta ovoz bering\n"
+        "• Natijalarni istalgan payt ko‘rishingiz mumkin",
+        parse_mode="HTML",
+        reply_markup=home_keyboard()
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "go_vote_panel")
+async def go_vote_panel_handler(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    subscribed = await check_user_subscription(user_id)
+
+    if not subscribed:
+        await callback.message.answer(
+            get_welcome_text(),
+            parse_mode="HTML",
+            reply_markup=subscription_keyboard()
+        )
+        await callback.answer()
+        return
+
+    if has_voted(user_id):
+        await callback.message.answer(
+            get_already_voted_text(),
+            parse_mode="HTML",
+            reply_markup=home_keyboard()
+        )
+        await callback.answer()
+        return
+
+    if not is_voting_open():
+        await callback.message.answer(
+            get_closed_text(),
+            parse_mode="HTML",
+            reply_markup=home_keyboard()
+        )
+        await callback.answer()
+        return
+
+    await callback.message.answer(
+        get_vote_select_text(),
+        parse_mode="HTML",
+        reply_markup=teachers_keyboard()
+    )
+    await callback.answer()
 
 
 # =========================
@@ -366,25 +504,25 @@ async def check_subscription_handler(callback: CallbackQuery):
 
     if has_voted(user_id):
         await callback.message.edit_text(
-            "✅ Obuna tasdiqlandi.\n\n"
-            "Siz allaqachon ovoz berib bo‘lgansiz.",
-            reply_markup=teachers_keyboard()
+            get_already_voted_text(),
+            parse_mode="HTML",
+            reply_markup=home_keyboard()
         )
         await callback.answer()
         return
 
     if not is_voting_open():
         await callback.message.edit_text(
-            "✅ Obuna tasdiqlandi.\n\n"
-            "🔴 Hozircha ovoz berish yopilgan.",
-            reply_markup=teachers_keyboard()
+            get_closed_text(),
+            parse_mode="HTML",
+            reply_markup=home_keyboard()
         )
         await callback.answer()
         return
 
     await callback.message.edit_text(
-        "✅ Obuna tasdiqlandi.\n\n"
-        "Endi o‘qituvchilardan birini tanlang:",
+        "✅ <b>Obuna tasdiqlandi</b>\n\nEndi o‘qituvchini tanlang:",
+        parse_mode="HTML",
         reply_markup=teachers_keyboard()
     )
     await callback.answer()
@@ -421,8 +559,11 @@ async def vote_handler(callback: CallbackQuery):
     save_vote(user_id, full_name, username, teacher_key)
 
     await callback.message.edit_text(
-        f"✅ Siz <b>{TEACHERS[teacher_key]}</b> uchun ovoz berdingiz.\n\nRahmat!",
-        parse_mode="HTML"
+        f"✅ <b>Ovoz muvaffaqiyatli qabul qilindi</b>\n\n"
+        f"👤 <b>Tanlovingiz:</b> {TEACHERS[teacher_key]}\n\n"
+        f"Rahmat, sizning ovozingiz saqlandi.",
+        parse_mode="HTML",
+        reply_markup=after_vote_keyboard()
     )
     await callback.answer("Ovozingiz qabul qilindi!")
 
@@ -432,13 +573,21 @@ async def vote_handler(callback: CallbackQuery):
 # =========================
 @dp.callback_query(F.data == "show_results")
 async def show_results_handler(callback: CallbackQuery):
-    await callback.message.answer(get_results_text(), parse_mode="HTML")
+    await callback.message.answer(
+        get_results_text(),
+        parse_mode="HTML",
+        reply_markup=home_keyboard()
+    )
     await callback.answer()
 
 
 @dp.message(Command("results"))
 async def results_handler(message: Message):
-    await message.answer(get_results_text(), parse_mode="HTML")
+    await message.answer(
+        get_results_text(),
+        parse_mode="HTML",
+        reply_markup=home_keyboard()
+    )
 
 
 # =========================
@@ -584,7 +733,11 @@ async def admin_reset_callback(callback: CallbackQuery):
 # =========================
 @dp.message(F.text.lower() == "results")
 async def text_results_handler(message: Message):
-    await message.answer(get_results_text(), parse_mode="HTML")
+    await message.answer(
+        get_results_text(),
+        parse_mode="HTML",
+        reply_markup=home_keyboard()
+    )
 
 
 # =========================

@@ -19,7 +19,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # =========================
 # SOZLAMALAR
 # =========================
-BOT_TOKEN =  "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
+BOT_TOKEN ="8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
 CHANNEL_USERNAME = "@botuchun10"
 ADMIN_IDS = [5298063089]
 
@@ -233,12 +233,6 @@ def reset_votes():
     conn.commit()
 
 
-def build_progress_bar(percent: float, length: int = 10) -> str:
-    filled = round((percent / 100) * length)
-    empty = length - filled
-    return "█" * filled + "░" * empty
-
-
 def get_subject_name(subject_key: str) -> str:
     return SUBJECTS.get(subject_key, {}).get("name", subject_key)
 
@@ -247,30 +241,84 @@ def get_teacher_name(subject_key: str, teacher_key: str) -> str:
     return SUBJECTS.get(subject_key, {}).get("teachers", {}).get(teacher_key, teacher_key)
 
 
-def get_results_text() -> str:
-    total_votes = get_total_votes()
-    lines = ["📊 <b>Ovoz berish natijalari</b>\n"]
+def build_progress_bar(percent: float, length: int = 14) -> str:
+    filled = round((percent / 100) * length)
+    filled = max(0, min(filled, length))
+    empty = length - filled
+    return "▓" * filled + "░" * empty
 
+
+def get_all_teachers_flat():
+    items = []
     for subject_key, subject_data in SUBJECTS.items():
-        lines.append(f"<b>{subject_data['name']}</b>")
-
         for teacher_key, teacher_name in subject_data["teachers"].items():
-            cursor.execute("""
-                SELECT COUNT(*)
-                FROM votes
-                WHERE subject_key = ? AND teacher_key = ?
-            """, (subject_key, teacher_key))
-            count = cursor.fetchone()[0]
-            percent = (count / total_votes * 100) if total_votes > 0 else 0
-            bar = build_progress_bar(percent)
+            items.append((subject_key, teacher_key, teacher_name))
+    return items
 
-            lines.append(
-                f"<b>{teacher_name}</b>\n"
-                f"{bar} {percent:.1f}% | {count} ta"
-            )
 
-        lines.append("")
+def get_result_lines_for_subject(subject_key: str, total_votes: int) -> list[str]:
+    lines = []
+    subject_name = get_subject_name(subject_key)
+    lines.append(f"{subject_name}\n")
 
+    teachers = SUBJECTS.get(subject_key, {}).get("teachers", {})
+    for teacher_key, teacher_name in teachers.items():
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM votes
+            WHERE subject_key = ? AND teacher_key = ?
+        """, (subject_key, teacher_key))
+        count = cursor.fetchone()[0]
+        percent = (count / total_votes * 100) if total_votes > 0 else 0
+        bar = build_progress_bar(percent)
+
+        lines.append(
+            f"<b>{teacher_name}</b>\n"
+            f"<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n"
+        )
+
+    return lines
+
+
+def get_general_results_text() -> str:
+    total_votes = get_total_votes()
+    lines = ["📊 <b>Umumiy natijalar</b>\n"]
+
+    all_teachers = get_all_teachers_flat()
+    for subject_key, teacher_key, teacher_name in all_teachers:
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM votes
+            WHERE subject_key = ? AND teacher_key = ?
+        """, (subject_key, teacher_key))
+        count = cursor.fetchone()[0]
+        percent = (count / total_votes * 100) if total_votes > 0 else 0
+        bar = build_progress_bar(percent)
+
+        lines.append(
+            f"<b>{teacher_name}</b> — {get_subject_name(subject_key)}\n"
+            f"<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n"
+        )
+
+    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
+    lines.append(
+        f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
+        f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
+    )
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        return text[:4000] + "\n\n... matn uzun bo‘lgani uchun qisqartirildi"
+    return text
+
+
+def get_subject_results_text(subject_key: str) -> str:
+    total_votes = get_total_votes()
+    if subject_key not in SUBJECTS:
+        return "Noto‘g‘ri fan."
+
+    lines = [f"📊 <b>{get_subject_name(subject_key)} bo‘yicha natijalar</b>\n"]
+    lines.extend(get_result_lines_for_subject(subject_key, total_votes))
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
     lines.append(
         f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
@@ -390,7 +438,7 @@ def subscription_keyboard() -> InlineKeyboardMarkup:
     )
     kb.row(
         InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_subscription"),
-        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results")
+        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results_menu_user")
     )
     return kb.as_markup()
 
@@ -399,7 +447,7 @@ def home_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="🗳 Ovoz berish", callback_data="go_vote_panel"),
-        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results")
+        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results_menu_user")
     )
     kb.row(
         InlineKeyboardButton(text="ℹ️ Yordam", callback_data="help_info")
@@ -448,20 +496,67 @@ def teachers_keyboard(subject_key: str) -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def after_vote_keyboard() -> InlineKeyboardMarkup:
+def results_menu_keyboard_user() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="📊 Umumiy", callback_data="show_results_user:general"))
+
+    for subject_key, subject_data in SUBJECTS.items():
+        kb.row(
+            InlineKeyboardButton(
+                text=subject_data["name"],
+                callback_data=f"show_results_user:{subject_key}"
+            )
+        )
+
+    kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home"))
+    return kb.as_markup()
+
+
+def results_menu_keyboard_admin() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="📊 Umumiy", callback_data="show_results_admin:general"))
+
+    for subject_key, subject_data in SUBJECTS.items():
+        kb.row(
+            InlineKeyboardButton(
+                text=subject_data["name"],
+                callback_data=f"show_results_admin:{subject_key}"
+            )
+        )
+
+    kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
+    return kb.as_markup()
+
+
+def results_keyboard_user(scope: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results"),
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"refresh_results_user:{scope}"),
+        InlineKeyboardButton(text="📂 Bo‘limlar", callback_data="show_results_menu_user")
+    )
+    kb.row(
         InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
     )
     return kb.as_markup()
 
 
-def results_keyboard_user() -> InlineKeyboardMarkup:
+def results_keyboard_admin(scope: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_results_user"),
-        InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home")
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"refresh_results_admin:{scope}"),
+        InlineKeyboardButton(text="📂 Bo‘limlar", callback_data="admin_results")
+    )
+    kb.row(
+        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
+    )
+    return kb.as_markup()
+
+
+def after_vote_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results_menu_user"),
+        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
     )
     return kb.as_markup()
 
@@ -495,18 +590,10 @@ def reset_confirm_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def results_keyboard_admin() -> InlineKeyboardMarkup:
+def users_keyboard_admin() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_results_admin"),
-        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
-    )
-    return kb.as_markup()
-
-
-def admin_only_back_keyboard() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardBuilder()
-    kb.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_admin_users"),
         InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
     )
     return kb.as_markup()
@@ -573,6 +660,16 @@ def get_teacher_select_text(subject_key: str) -> str:
     return (
         f"{SUBJECTS[subject_key]['name']}\n\n"
         f"<b>O‘qituvchini tanlang:</b>"
+    )
+
+
+def get_results_menu_text(is_admin_view: bool = False) -> str:
+    back_text = "Admin panel uchun natija bo‘limlari" if is_admin_view else "Natijalar bo‘limlari"
+    return (
+        f"📊 <b>{back_text}</b>\n\n"
+        f"Kerakli bo‘limni tanlang:\n"
+        f"• Umumiy natijalar\n"
+        f"• Fanlar bo‘yicha natijalar"
     )
 
 
@@ -777,22 +874,46 @@ async def vote_handler(callback: CallbackQuery):
 # =========================
 # RESULTS - USER
 # =========================
-@dp.callback_query(F.data == "show_results")
-async def show_results_handler(callback: CallbackQuery):
+@dp.callback_query(F.data == "show_results_menu_user")
+async def show_results_menu_user(callback: CallbackQuery):
     await safe_edit_message(
         callback,
-        get_results_text(),
-        results_keyboard_user()
+        get_results_menu_text(False),
+        results_menu_keyboard_user()
     )
     await callback.answer()
 
 
-@dp.callback_query(F.data == "refresh_results_user")
-async def refresh_results_user_handler(callback: CallbackQuery):
+@dp.callback_query(F.data.startswith("show_results_user:"))
+async def show_results_user(callback: CallbackQuery):
+    scope = callback.data.split(":", 1)[1]
+
+    if scope == "general":
+        text = get_general_results_text()
+    else:
+        text = get_subject_results_text(scope)
+
     await safe_edit_message(
         callback,
-        get_results_text(),
-        results_keyboard_user()
+        text,
+        results_keyboard_user(scope)
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("refresh_results_user:"))
+async def refresh_results_user(callback: CallbackQuery):
+    scope = callback.data.split(":", 1)[1]
+
+    if scope == "general":
+        text = get_general_results_text()
+    else:
+        text = get_subject_results_text(scope)
+
+    await safe_edit_message(
+        callback,
+        text,
+        results_keyboard_user(scope)
     )
     await callback.answer("Yangilandi")
 
@@ -800,9 +921,9 @@ async def refresh_results_user_handler(callback: CallbackQuery):
 @dp.message(Command("results"))
 async def results_handler(message: Message):
     await message.answer(
-        get_results_text(),
+        get_results_menu_text(False),
         parse_mode="HTML",
-        reply_markup=results_keyboard_user()
+        reply_markup=results_menu_keyboard_user()
     )
 
 # =========================
@@ -830,7 +951,7 @@ async def admin_users_handler(message: Message):
     await message.answer(
         get_users_text(),
         parse_mode="HTML",
-        reply_markup=admin_only_back_keyboard()
+        reply_markup=users_keyboard_admin()
     )
 
 
@@ -898,22 +1019,50 @@ async def admin_results_callback(callback: CallbackQuery):
 
     await safe_edit_message(
         callback,
-        get_results_text(),
-        results_keyboard_admin()
+        get_results_menu_text(True),
+        results_menu_keyboard_admin()
     )
     await callback.answer()
 
 
-@dp.callback_query(F.data == "refresh_results_admin")
+@dp.callback_query(F.data.startswith("show_results_admin:"))
+async def show_results_admin(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    scope = callback.data.split(":", 1)[1]
+
+    if scope == "general":
+        text = get_general_results_text()
+    else:
+        text = get_subject_results_text(scope)
+
+    await safe_edit_message(
+        callback,
+        text,
+        results_keyboard_admin(scope)
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("refresh_results_admin:"))
 async def refresh_results_admin_handler(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
+    scope = callback.data.split(":", 1)[1]
+
+    if scope == "general":
+        text = get_general_results_text()
+    else:
+        text = get_subject_results_text(scope)
+
     await safe_edit_message(
         callback,
-        get_results_text(),
-        results_keyboard_admin()
+        text,
+        results_keyboard_admin(scope)
     )
     await callback.answer("Yangilandi")
 
@@ -927,9 +1076,23 @@ async def admin_users_callback(callback: CallbackQuery):
     await safe_edit_message(
         callback,
         get_users_text(),
-        admin_only_back_keyboard()
+        users_keyboard_admin()
     )
     await callback.answer()
+
+
+@dp.callback_query(F.data == "refresh_admin_users")
+async def refresh_admin_users(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        get_users_text(),
+        users_keyboard_admin()
+    )
+    await callback.answer("Yangilandi")
 
 
 @dp.callback_query(F.data == "admin_export")
@@ -1025,9 +1188,9 @@ async def admin_reset_callback(callback: CallbackQuery):
 @dp.message(F.text.lower() == "results")
 async def text_results_handler(message: Message):
     await message.answer(
-        get_results_text(),
+        get_results_menu_text(False),
         parse_mode="HTML",
-        reply_markup=results_keyboard_user()
+        reply_markup=results_menu_keyboard_user()
     )
 
 # =========================

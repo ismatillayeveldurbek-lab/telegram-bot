@@ -25,7 +25,7 @@ CHANNEL_USERNAME = "@botuchun10"
 ADMIN_IDS = [5298063089]
 
 SUBJECTS = {
-    "ingliz_tili": {
+    "ingliztili": {
         "name": "🇬🇧 Ingliz tili",
         "teachers": {
             "ingliz_1": "Yo'ldoshev Bekmirza",

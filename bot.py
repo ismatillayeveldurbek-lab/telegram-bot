@@ -15,6 +15,7 @@ from aiogram.types import (
     FSInputFile,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.exceptions import TelegramBadRequest
 
 # =========================
 # SOZLAMALAR
@@ -185,7 +186,7 @@ ensure_votes_columns()
 init_settings()
 
 # =========================
-# ASOSIY YORDAMCHI FUNKSIYALAR
+# ASOSIY YORDAMCHI
 # =========================
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
@@ -256,36 +257,11 @@ def get_all_teachers_flat():
     return items
 
 
-def get_result_lines_for_subject(subject_key: str, total_votes: int) -> list[str]:
-    lines = []
-    subject_name = get_subject_name(subject_key)
-    lines.append(f"{subject_name}\n")
-
-    teachers = SUBJECTS.get(subject_key, {}).get("teachers", {})
-    for teacher_key, teacher_name in teachers.items():
-        cursor.execute("""
-            SELECT COUNT(*)
-            FROM votes
-            WHERE subject_key = ? AND teacher_key = ?
-        """, (subject_key, teacher_key))
-        count = cursor.fetchone()[0]
-        percent = (count / total_votes * 100) if total_votes > 0 else 0
-        bar = build_progress_bar(percent)
-
-        lines.append(
-            f"<b>{teacher_name}</b>\n"
-            f"<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n"
-        )
-
-    return lines
-
-
 def get_general_results_text() -> str:
     total_votes = get_total_votes()
     lines = ["📊 <b>Umumiy natijalar</b>\n"]
 
-    all_teachers = get_all_teachers_flat()
-    for subject_key, teacher_key, teacher_name in all_teachers:
+    for subject_key, teacher_key, teacher_name in get_all_teachers_flat():
         cursor.execute("""
             SELECT COUNT(*)
             FROM votes
@@ -314,11 +290,27 @@ def get_general_results_text() -> str:
 
 def get_subject_results_text(subject_key: str) -> str:
     total_votes = get_total_votes()
+
     if subject_key not in SUBJECTS:
         return "Noto‘g‘ri fan."
 
     lines = [f"📊 <b>{get_subject_name(subject_key)} bo‘yicha natijalar</b>\n"]
-    lines.extend(get_result_lines_for_subject(subject_key, total_votes))
+
+    for teacher_key, teacher_name in SUBJECTS[subject_key]["teachers"].items():
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM votes
+            WHERE subject_key = ? AND teacher_key = ?
+        """, (subject_key, teacher_key))
+        count = cursor.fetchone()[0]
+        percent = (count / total_votes * 100) if total_votes > 0 else 0
+        bar = build_progress_bar(percent)
+
+        lines.append(
+            f"<b>{teacher_name}</b>\n"
+            f"<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n"
+        )
+
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
     lines.append(
         f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
@@ -418,12 +410,28 @@ async def safe_edit_message(
             parse_mode="HTML",
             reply_markup=reply_markup
         )
+    except TelegramBadRequest as e:
+        error_text = str(e).lower()
+
+        # O‘sha xabarning o‘zi bo‘lsa yangi xabar yubormaymiz
+        if "message is not modified" in error_text:
+            return
+
+        # Ba'zi media/service xabarlarda edit bo‘lmasligi mumkin
+        if "there is no text in the message to edit" in error_text:
+            return
+
+        # Faqat juda zarur holatdagina yangi xabar
+        try:
+            await callback.message.answer(
+                text=text,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+        except Exception:
+            return
     except Exception:
-        await callback.message.answer(
-            text=text,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
+        return
 
 # =========================
 # KLAVIATURALAR
@@ -607,9 +615,7 @@ def get_welcome_text() -> str:
         "Quyidagi bosqichlarni bajaring:\n"
         "1. Kanalga obuna bo‘ling\n"
         "2. Obunani tasdiqlang\n"
-        "3. Fanni tanlang\n"
-        "4. O‘qituvchini tanlang\n"
-        "5. Ovoz bering\n\n"
+        "3. Bosh menyudan kerakli bo‘limni tanlang\n\n"
         "👇 Davom etish uchun tugmalardan foydalaning."
     )
 
@@ -626,7 +632,7 @@ def get_help_text() -> str:
         "ℹ️ <b>Yordam</b>\n\n"
         "• Avval kanalga obuna bo‘ling\n"
         "• So‘ng obunani tasdiqlang\n"
-        "• Avval fan tanlanadi\n"
+        "• Ovoz berish uchun fan tanlanadi\n"
         "• Keyin o‘qituvchi tanlanadi\n"
         "• Har bir foydalanuvchi faqat 1 marta ovoz bera oladi\n"
         "• Natijalarni istalgan payt ko‘rishingiz mumkin"
@@ -664,9 +670,9 @@ def get_teacher_select_text(subject_key: str) -> str:
 
 
 def get_results_menu_text(is_admin_view: bool = False) -> str:
-    back_text = "Admin panel uchun natija bo‘limlari" if is_admin_view else "Natijalar bo‘limlari"
+    title = "Admin natijalar bo‘limi" if is_admin_view else "Natijalar bo‘limi"
     return (
-        f"📊 <b>{back_text}</b>\n\n"
+        f"📊 <b>{title}</b>\n\n"
         f"Kerakli bo‘limni tanlang:\n"
         f"• Umumiy natijalar\n"
         f"• Fanlar bo‘yicha natijalar"
@@ -697,26 +703,10 @@ async def start_handler(message: Message):
         )
         return
 
-    if has_voted(user_id):
-        await message.answer(
-            get_already_voted_text(),
-            parse_mode="HTML",
-            reply_markup=home_keyboard()
-        )
-        return
-
-    if not is_voting_open():
-        await message.answer(
-            get_closed_text(),
-            parse_mode="HTML",
-            reply_markup=home_keyboard()
-        )
-        return
-
     await message.answer(
-        get_subject_select_text(),
+        get_home_text(),
         parse_mode="HTML",
-        reply_markup=subjects_keyboard()
+        reply_markup=home_keyboard()
     )
 
 # =========================
@@ -792,9 +782,7 @@ async def subject_select_handler(callback: CallbackQuery):
     )
     await callback.answer()
 
-# =========================
-# OBUNA TEKSHIRISH
-# =========================
+
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -804,26 +792,14 @@ async def check_subscription_handler(callback: CallbackQuery):
         await callback.answer("Siz hali kanalga obuna bo‘lmagansiz.", show_alert=True)
         return
 
-    if has_voted(user_id):
-        await safe_edit_message(callback, get_already_voted_text(), home_keyboard())
-        await callback.answer()
-        return
-
-    if not is_voting_open():
-        await safe_edit_message(callback, get_closed_text(), home_keyboard())
-        await callback.answer()
-        return
-
     await safe_edit_message(
         callback,
-        "✅ <b>Obuna tasdiqlandi</b>\n\nEndi fanni tanlang:",
-        subjects_keyboard()
+        "✅ <b>Obuna tasdiqlandi</b>\n\nEndi bosh menyudan kerakli bo‘limni tanlang:",
+        home_keyboard()
     )
-    await callback.answer()
+    await callback.answer("Tasdiqlandi")
 
-# =========================
-# OVOZ BERISH
-# =========================
+
 @dp.callback_query(F.data.startswith("vote:"))
 async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -893,11 +869,7 @@ async def show_results_user(callback: CallbackQuery):
     else:
         text = get_subject_results_text(scope)
 
-    await safe_edit_message(
-        callback,
-        text,
-        results_keyboard_user(scope)
-    )
+    await safe_edit_message(callback, text, results_keyboard_user(scope))
     await callback.answer()
 
 
@@ -910,11 +882,7 @@ async def refresh_results_user(callback: CallbackQuery):
     else:
         text = get_subject_results_text(scope)
 
-    await safe_edit_message(
-        callback,
-        text,
-        results_keyboard_user(scope)
-    )
+    await safe_edit_message(callback, text, results_keyboard_user(scope))
     await callback.answer("Yangilandi")
 
 
@@ -1038,11 +1006,7 @@ async def show_results_admin(callback: CallbackQuery):
     else:
         text = get_subject_results_text(scope)
 
-    await safe_edit_message(
-        callback,
-        text,
-        results_keyboard_admin(scope)
-    )
+    await safe_edit_message(callback, text, results_keyboard_admin(scope))
     await callback.answer()
 
 
@@ -1059,11 +1023,7 @@ async def refresh_results_admin_handler(callback: CallbackQuery):
     else:
         text = get_subject_results_text(scope)
 
-    await safe_edit_message(
-        callback,
-        text,
-        results_keyboard_admin(scope)
-    )
+    await safe_edit_message(callback, text, results_keyboard_admin(scope))
     await callback.answer("Yangilandi")
 
 
@@ -1073,11 +1033,7 @@ async def admin_users_callback(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await safe_edit_message(
-        callback,
-        get_users_text(),
-        users_keyboard_admin()
-    )
+    await safe_edit_message(callback, get_users_text(), users_keyboard_admin())
     await callback.answer()
 
 
@@ -1087,11 +1043,7 @@ async def refresh_admin_users(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await safe_edit_message(
-        callback,
-        get_users_text(),
-        users_keyboard_admin()
-    )
+    await safe_edit_message(callback, get_users_text(), users_keyboard_admin())
     await callback.answer("Yangilandi")
 
 
@@ -1117,11 +1069,7 @@ async def admin_open_callback(callback: CallbackQuery):
         return
 
     open_voting()
-    await safe_edit_message(
-        callback,
-        "🟢 <b>Ovoz berish ochildi</b>\n\nAdmin panel yangilandi.",
-        admin_panel_keyboard()
-    )
+    await safe_edit_message(callback, get_admin_panel_text(), admin_panel_keyboard())
     await callback.answer("Voting ochildi!")
 
 
@@ -1132,11 +1080,7 @@ async def admin_close_callback(callback: CallbackQuery):
         return
 
     close_voting()
-    await safe_edit_message(
-        callback,
-        "🔴 <b>Ovoz berish yopildi</b>\n\nAdmin panel yangilandi.",
-        admin_panel_keyboard()
-    )
+    await safe_edit_message(callback, get_admin_panel_text(), admin_panel_keyboard())
     await callback.answer("Voting yopildi!")
 
 
@@ -1160,11 +1104,7 @@ async def cancel_reset_callback(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await safe_edit_message(
-        callback,
-        "❌ <b>Reset bekor qilindi</b>\n\nHech qanday o‘zgarish qilinmadi.",
-        admin_panel_keyboard()
-    )
+    await safe_edit_message(callback, get_admin_panel_text(), admin_panel_keyboard())
     await callback.answer("Bekor qilindi")
 
 
@@ -1175,11 +1115,7 @@ async def admin_reset_callback(callback: CallbackQuery):
         return
 
     reset_votes()
-    await safe_edit_message(
-        callback,
-        "♻ <b>Barcha ovozlar tozalandi</b>\n\nAdmin panel yangilandi.",
-        admin_panel_keyboard()
-    )
+    await safe_edit_message(callback, get_admin_panel_text(), admin_panel_keyboard())
     await callback.answer("Reset qilindi!")
 
 # =========================

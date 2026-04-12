@@ -1,5 +1,6 @@
-import asyncio
+import os
 import csv
+import asyncio
 import logging
 import sqlite3
 from datetime import datetime
@@ -7,6 +8,7 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatMemberStatus
 from aiogram.filters import Command
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     Message,
     CallbackQuery,
@@ -15,17 +17,34 @@ from aiogram.types import (
     FSInputFile,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.exceptions import TelegramBadRequest
 
 # =========================
 # SOZLAMALAR
 # =========================
-BOT_TOKEN ="8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
-CHANNEL_USERNAME = "@botuchun10"
-ADMIN_IDS = [5298063089]
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE")
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@botuchun10")
+
+ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "5298063089")
+ADMIN_IDS = [
+    int(x.strip()) for x in ADMIN_IDS_RAW.split(",")
+    if x.strip().isdigit()
+]
+
+DATA_DIR = os.getenv("DATA_DIR", "/app/data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DB_NAME = os.path.join(DATA_DIR, "votes.db")
+EXPORT_FILE = os.path.join(DATA_DIR, "votes_export.csv")
+
+# Railway volume uchun papka
+DATA_DIR = os.getenv("DATA_DIR", "/app/data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DB_NAME = os.path.join(DATA_DIR, "votes.db")
+EXPORT_FILE = os.path.join(DATA_DIR, "votes_export.csv")
 
 SUBJECTS = {
-    "ingliztili": {
+    "ingliz_tili": {
         "name": "🇬🇧 Ingliz tili",
         "teachers": {
             "ingliz_1": "Yo'ldoshev Bekmirza",
@@ -113,55 +132,59 @@ SUBJECTS = {
     },
 }
 
-DB_NAME = "votes.db"
-
 logging.basicConfig(level=logging.INFO)
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN topilmadi")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# SQLite
+conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+cursor = conn.cursor()
+
 # =========================
 # BAZA
 # =========================
-conn = sqlite3.connect(DB_NAME)
-cursor = conn.cursor()
+def init_db():
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS votes (
+        user_id INTEGER PRIMARY KEY,
+        full_name TEXT,
+        username TEXT,
+        subject_key TEXT NOT NULL,
+        teacher_key TEXT NOT NULL,
+        voted_at TEXT
+    )
+    """)
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS votes (
-    user_id INTEGER PRIMARY KEY,
-    full_name TEXT,
-    username TEXT,
-    subject_key TEXT NOT NULL,
-    teacher_key TEXT NOT NULL,
-    voted_at TEXT
-)
-""")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+    """)
+    conn.commit()
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-)
-""")
-
-conn.commit()
-
-# =========================
-# BAZA YORDAMCHI
-# =========================
-def ensure_votes_columns():
     cursor.execute("PRAGMA table_info(votes)")
     columns = [row[1] for row in cursor.fetchall()]
-
-    if "voted_at" not in columns:
-        cursor.execute("ALTER TABLE votes ADD COLUMN voted_at TEXT")
-        conn.commit()
 
     if "subject_key" not in columns:
         cursor.execute("ALTER TABLE votes ADD COLUMN subject_key TEXT")
         conn.commit()
 
+    if "voted_at" not in columns:
+        cursor.execute("ALTER TABLE votes ADD COLUMN voted_at TEXT")
+        conn.commit()
 
+    if get_setting("voting_open", "") == "":
+        set_setting("voting_open", "1")
+
+
+# =========================
+# YORDAMCHI FUNKSIYALAR
+# =========================
 def get_setting(key: str, default: str = "") -> str:
     cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
     row = cursor.fetchone()
@@ -172,22 +195,11 @@ def set_setting(key: str, value: str):
     cursor.execute("""
         INSERT INTO settings (key, value)
         VALUES (?, ?)
-        ON CONFLICT(key) DO UPDATE SET value=excluded.value
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
     """, (key, value))
     conn.commit()
 
 
-def init_settings():
-    if get_setting("voting_open", "") == "":
-        set_setting("voting_open", "1")
-
-
-ensure_votes_columns()
-init_settings()
-
-# =========================
-# ASOSIY YORDAMCHI
-# =========================
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
@@ -250,11 +262,11 @@ def build_progress_bar(percent: float, length: int = 14) -> str:
 
 
 def get_all_teachers_flat():
-    items = []
+    result = []
     for subject_key, subject_data in SUBJECTS.items():
         for teacher_key, teacher_name in subject_data["teachers"].items():
-            items.append((subject_key, teacher_key, teacher_name))
-    return items
+            result.append((subject_key, teacher_key, teacher_name))
+    return result
 
 
 def get_general_results_text() -> str:
@@ -283,9 +295,7 @@ def get_general_results_text() -> str:
     )
 
     text = "\n".join(lines)
-    if len(text) > 4000:
-        return text[:4000] + "\n\n... matn uzun bo‘lgani uchun qisqartirildi"
-    return text
+    return text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
 
 
 def get_subject_results_text(subject_key: str) -> str:
@@ -318,9 +328,7 @@ def get_subject_results_text(subject_key: str) -> str:
     )
 
     text = "\n".join(lines)
-    if len(text) > 4000:
-        return text[:4000] + "\n\n... matn uzun bo‘lgani uchun qisqartirildi"
-    return text
+    return text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
 
 
 def get_users_text() -> str:
@@ -336,32 +344,22 @@ def get_users_text() -> str:
 
     lines = [f"👥 <b>Kim kimga ovoz berdi</b>\n\nJami: {len(rows)} ta foydalanuvchi\n"]
 
-    for i, row in enumerate(rows, start=1):
-        user_id, full_name, username, subject_key, teacher_key, voted_at = row
-
-        subject_name = get_subject_name(subject_key)
-        teacher_name = get_teacher_name(subject_key, teacher_key)
-
+    for i, (user_id, full_name, username, subject_key, teacher_key, voted_at) in enumerate(rows, start=1):
         line = f"{i}. <b>{full_name or 'Noma’lum'}</b>"
         if username:
             line += f" (@{username})"
-        line += f"\n   → Fan: {subject_name}"
-        line += f"\n   → O‘qituvchi: {teacher_name}"
+        line += f"\n   → Fan: {get_subject_name(subject_key)}"
+        line += f"\n   → O‘qituvchi: {get_teacher_name(subject_key, teacher_key)}"
         line += f"\n   → ID: <code>{user_id}</code>"
         if voted_at:
             line += f"\n   → {voted_at}"
-
         lines.append(line)
 
     text = "\n\n".join(lines)
-    if len(text) > 4000:
-        return text[:4000] + "\n\n... matn uzun bo‘lgani uchun qisqartirildi"
-    return text
+    return text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
 
 
 def export_votes_to_csv() -> str:
-    filename = "votes_export.csv"
-
     cursor.execute("""
         SELECT user_id, full_name, username, subject_key, teacher_key, voted_at
         FROM votes
@@ -369,7 +367,7 @@ def export_votes_to_csv() -> str:
     """)
     rows = cursor.fetchall()
 
-    with open(filename, "w", newline="", encoding="utf-8-sig") as f:
+    with open(EXPORT_FILE, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
         writer.writerow(["User ID", "Full Name", "Username", "Subject", "Teacher", "Voted At"])
 
@@ -383,7 +381,7 @@ def export_votes_to_csv() -> str:
                 voted_at or ""
             ])
 
-    return filename
+    return EXPORT_FILE
 
 
 async def check_user_subscription(user_id: int) -> bool:
@@ -413,15 +411,12 @@ async def safe_edit_message(
     except TelegramBadRequest as e:
         error_text = str(e).lower()
 
-        # O‘sha xabarning o‘zi bo‘lsa yangi xabar yubormaymiz
         if "message is not modified" in error_text:
             return
 
-        # Ba'zi media/service xabarlarda edit bo‘lmasligi mumkin
         if "there is no text in the message to edit" in error_text:
             return
 
-        # Faqat juda zarur holatdagina yangi xabar
         try:
             await callback.message.answer(
                 text=text,
@@ -432,6 +427,7 @@ async def safe_edit_message(
             return
     except Exception:
         return
+
 
 # =========================
 # KLAVIATURALAR
@@ -465,7 +461,6 @@ def home_keyboard() -> InlineKeyboardMarkup:
 
 def subjects_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-
     for subject_key, subject_data in SUBJECTS.items():
         kb.row(
             InlineKeyboardButton(
@@ -473,10 +468,7 @@ def subjects_keyboard() -> InlineKeyboardMarkup:
                 callback_data=f"subject:{subject_key}"
             )
         )
-
-    kb.row(
-        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
-    )
+    kb.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home"))
     return kb.as_markup()
 
 
@@ -485,29 +477,24 @@ def teachers_keyboard(subject_key: str) -> InlineKeyboardMarkup:
     teachers = list(SUBJECTS[subject_key]["teachers"].items())
 
     for i in range(0, len(teachers), 2):
-        row_buttons = []
+        row = []
         for teacher_key, teacher_name in teachers[i:i + 2]:
-            row_buttons.append(
+            row.append(
                 InlineKeyboardButton(
                     text=teacher_name,
                     callback_data=f"vote:{subject_key}:{teacher_key}"
                 )
             )
-        kb.row(*row_buttons)
+        kb.row(*row)
 
-    kb.row(
-        InlineKeyboardButton(text="⬅️ Fanlarga qaytish", callback_data="go_vote_panel")
-    )
-    kb.row(
-        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
-    )
+    kb.row(InlineKeyboardButton(text="⬅️ Fanlarga qaytish", callback_data="go_vote_panel"))
+    kb.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home"))
     return kb.as_markup()
 
 
 def results_menu_keyboard_user() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="📊 Umumiy", callback_data="show_results_user:general"))
-
     for subject_key, subject_data in SUBJECTS.items():
         kb.row(
             InlineKeyboardButton(
@@ -515,7 +502,6 @@ def results_menu_keyboard_user() -> InlineKeyboardMarkup:
                 callback_data=f"show_results_user:{subject_key}"
             )
         )
-
     kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home"))
     return kb.as_markup()
 
@@ -523,7 +509,6 @@ def results_menu_keyboard_user() -> InlineKeyboardMarkup:
 def results_menu_keyboard_admin() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="📊 Umumiy", callback_data="show_results_admin:general"))
-
     for subject_key, subject_data in SUBJECTS.items():
         kb.row(
             InlineKeyboardButton(
@@ -531,7 +516,6 @@ def results_menu_keyboard_admin() -> InlineKeyboardMarkup:
                 callback_data=f"show_results_admin:{subject_key}"
             )
         )
-
     kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
 
@@ -542,9 +526,7 @@ def results_keyboard_user(scope: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"refresh_results_user:{scope}"),
         InlineKeyboardButton(text="📂 Bo‘limlar", callback_data="show_results_menu_user")
     )
-    kb.row(
-        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
-    )
+    kb.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home"))
     return kb.as_markup()
 
 
@@ -554,9 +536,7 @@ def results_keyboard_admin(scope: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"refresh_results_admin:{scope}"),
         InlineKeyboardButton(text="📂 Bo‘limlar", callback_data="admin_results")
     )
-    kb.row(
-        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
-    )
+    kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
 
 
@@ -592,9 +572,7 @@ def reset_confirm_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_reset"),
         InlineKeyboardButton(text="✅ Ha, o‘chirish", callback_data="admin_reset")
     )
-    kb.row(
-        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
-    )
+    kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
 
 
@@ -606,6 +584,7 @@ def users_keyboard_admin() -> InlineKeyboardMarkup:
     )
     return kb.as_markup()
 
+
 # =========================
 # MATNLAR
 # =========================
@@ -615,23 +594,18 @@ def get_welcome_text() -> str:
         "Quyidagi bosqichlarni bajaring:\n"
         "1. Kanalga obuna bo‘ling\n"
         "2. Obunani tasdiqlang\n"
-        "3. Bosh menyudan kerakli bo‘limni tanlang\n\n"
-        "👇 Davom etish uchun tugmalardan foydalaning."
+        "3. Bosh menyudan kerakli bo‘limni tanlang"
     )
 
 
 def get_home_text() -> str:
-    return (
-        "🏠 <b>Bosh menyu</b>\n\n"
-        "Kerakli bo‘limni tanlang:"
-    )
+    return "🏠 <b>Bosh menyu</b>\n\nKerakli bo‘limni tanlang:"
 
 
 def get_help_text() -> str:
     return (
         "ℹ️ <b>Yordam</b>\n\n"
         "• Avval kanalga obuna bo‘ling\n"
-        "• So‘ng obunani tasdiqlang\n"
         "• Ovoz berish uchun fan tanlanadi\n"
         "• Keyin o‘qituvchi tanlanadi\n"
         "• Har bir foydalanuvchi faqat 1 marta ovoz bera oladi\n"
@@ -650,23 +624,16 @@ def get_already_voted_text() -> str:
 def get_closed_text() -> str:
     return (
         "🔒 <b>Ovoz berish hozircha yopilgan</b>\n\n"
-        "Admin tomonidan ovoz berish vaqtincha to‘xtatilgan.\n"
-        "📊 Siz natijalarni ko‘rishingiz mumkin."
+        "Admin tomonidan ovoz berish vaqtincha to‘xtatilgan."
     )
 
 
 def get_subject_select_text() -> str:
-    return (
-        "🗂 <b>Fanni tanlang</b>\n\n"
-        "Quyidagi fanlardan birini tanlang:"
-    )
+    return "🗂 <b>Fanni tanlang</b>\n\nQuyidagi fanlardan birini tanlang:"
 
 
 def get_teacher_select_text(subject_key: str) -> str:
-    return (
-        f"{SUBJECTS[subject_key]['name']}\n\n"
-        f"<b>O‘qituvchini tanlang:</b>"
-    )
+    return f"{SUBJECTS[subject_key]['name']}\n\n<b>O‘qituvchini tanlang:</b>"
 
 
 def get_results_menu_text(is_admin_view: bool = False) -> str:
@@ -687,15 +654,15 @@ def get_admin_panel_text() -> str:
         f"Jami ovozlar: {get_total_votes()}"
     )
 
+
 # =========================
 # START
 # =========================
 @dp.message(Command("start"))
 async def start_handler(message: Message):
     user_id = message.from_user.id
-    subscribed = await check_user_subscription(user_id)
 
-    if not subscribed:
+    if not await check_user_subscription(user_id):
         await message.answer(
             get_welcome_text(),
             parse_mode="HTML",
@@ -708,6 +675,7 @@ async def start_handler(message: Message):
         parse_mode="HTML",
         reply_markup=home_keyboard()
     )
+
 
 # =========================
 # USER CALLBACKLAR
@@ -729,9 +697,8 @@ async def help_info_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "go_vote_panel")
 async def go_vote_panel_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    subscribed = await check_user_subscription(user_id)
 
-    if not subscribed:
+    if not await check_user_subscription(user_id):
         await safe_edit_message(callback, get_welcome_text(), subscription_keyboard())
         await callback.answer()
         return
@@ -786,9 +753,8 @@ async def subject_select_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    subscribed = await check_user_subscription(user_id)
 
-    if not subscribed:
+    if not await check_user_subscription(user_id):
         await callback.answer("Siz hali kanalga obuna bo‘lmagansiz.", show_alert=True)
         return
 
@@ -804,8 +770,7 @@ async def check_subscription_handler(callback: CallbackQuery):
 async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
 
-    subscribed = await check_user_subscription(user_id)
-    if not subscribed:
+    if not await check_user_subscription(user_id):
         await callback.answer("Avval kanalga obuna bo‘ling.", show_alert=True)
         return
 
@@ -832,10 +797,13 @@ async def vote_handler(callback: CallbackQuery):
         await callback.answer("Noto‘g‘ri o‘qituvchi.", show_alert=True)
         return
 
-    full_name = callback.from_user.full_name or "Noma’lum"
-    username = callback.from_user.username or ""
-
-    save_vote(user_id, full_name, username, subject_key, teacher_key)
+    save_vote(
+        user_id=user_id,
+        full_name=callback.from_user.full_name or "Noma’lum",
+        username=callback.from_user.username or "",
+        subject_key=subject_key,
+        teacher_key=teacher_key,
+    )
 
     await safe_edit_message(
         callback,
@@ -846,6 +814,7 @@ async def vote_handler(callback: CallbackQuery):
         after_vote_keyboard()
     )
     await callback.answer("Ovozingiz qabul qilindi!")
+
 
 # =========================
 # RESULTS - USER
@@ -863,12 +832,7 @@ async def show_results_menu_user(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("show_results_user:"))
 async def show_results_user(callback: CallbackQuery):
     scope = callback.data.split(":", 1)[1]
-
-    if scope == "general":
-        text = get_general_results_text()
-    else:
-        text = get_subject_results_text(scope)
-
+    text = get_general_results_text() if scope == "general" else get_subject_results_text(scope)
     await safe_edit_message(callback, text, results_keyboard_user(scope))
     await callback.answer()
 
@@ -876,12 +840,7 @@ async def show_results_user(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("refresh_results_user:"))
 async def refresh_results_user(callback: CallbackQuery):
     scope = callback.data.split(":", 1)[1]
-
-    if scope == "general":
-        text = get_general_results_text()
-    else:
-        text = get_subject_results_text(scope)
-
+    text = get_general_results_text() if scope == "general" else get_subject_results_text(scope)
     await safe_edit_message(callback, text, results_keyboard_user(scope))
     await callback.answer("Yangilandi")
 
@@ -893,6 +852,7 @@ async def results_handler(message: Message):
         parse_mode="HTML",
         reply_markup=results_menu_keyboard_user()
     )
+
 
 # =========================
 # ADMIN BUYRUQLAR
@@ -930,8 +890,10 @@ async def admin_export_handler(message: Message):
         return
 
     filename = export_votes_to_csv()
-    file = FSInputFile(filename)
-    await message.answer_document(file, caption="📁 Ovozlar CSV fayl ko‘rinishida.")
+    await message.answer_document(
+        FSInputFile(filename),
+        caption="📁 Ovozlar CSV fayl ko‘rinishida."
+    )
 
 
 @dp.message(Command("open"))
@@ -965,6 +927,7 @@ async def admin_reset_handler(message: Message):
         parse_mode="HTML",
         reply_markup=reset_confirm_keyboard()
     )
+
 
 # =========================
 # ADMIN CALLBACKLAR
@@ -1000,12 +963,7 @@ async def show_results_admin(callback: CallbackQuery):
         return
 
     scope = callback.data.split(":", 1)[1]
-
-    if scope == "general":
-        text = get_general_results_text()
-    else:
-        text = get_subject_results_text(scope)
-
+    text = get_general_results_text() if scope == "general" else get_subject_results_text(scope)
     await safe_edit_message(callback, text, results_keyboard_admin(scope))
     await callback.answer()
 
@@ -1017,12 +975,7 @@ async def refresh_results_admin_handler(callback: CallbackQuery):
         return
 
     scope = callback.data.split(":", 1)[1]
-
-    if scope == "general":
-        text = get_general_results_text()
-    else:
-        text = get_subject_results_text(scope)
-
+    text = get_general_results_text() if scope == "general" else get_subject_results_text(scope)
     await safe_edit_message(callback, text, results_keyboard_admin(scope))
     await callback.answer("Yangilandi")
 
@@ -1054,9 +1007,8 @@ async def admin_export_callback(callback: CallbackQuery):
         return
 
     filename = export_votes_to_csv()
-    file = FSInputFile(filename)
     await callback.message.answer_document(
-        file,
+        FSInputFile(filename),
         caption="📁 Ovozlar CSV fayl ko‘rinishida."
     )
     await callback.answer()
@@ -1118,6 +1070,7 @@ async def admin_reset_callback(callback: CallbackQuery):
     await safe_edit_message(callback, get_admin_panel_text(), admin_panel_keyboard())
     await callback.answer("Reset qilindi!")
 
+
 # =========================
 # TEXT HANDLER
 # =========================
@@ -1129,11 +1082,13 @@ async def text_results_handler(message: Message):
         reply_markup=results_menu_keyboard_user()
     )
 
+
 # =========================
 # MAIN
 # =========================
 async def main():
-    logging.info("Bot ishga tushdi...")
+    init_db()
+    logging.info(f"Bot ishga tushdi. Baza: {DB_NAME}")
     await dp.start_polling(bot)
 
 

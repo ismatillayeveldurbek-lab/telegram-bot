@@ -19,15 +19,97 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # =========================
 # SOZLAMALAR
 # =========================
-BOT_TOKEN = "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
+BOT_TOKEN =  "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE"
 CHANNEL_USERNAME = "@botuchun10"
 ADMIN_IDS = [5298063089]
 
-TEACHERS = {
-    "irisova_sayora": "Irisova Sayora",
-    "karimova_umida": "Karimova Umida",
-    "razoquva_dilnoza": "Razoquva Dilnoza",
-    "sadinova_marjona": "Sadinova Marjona",
+SUBJECTS = {
+    "ingliz_tili": {
+        "name": "🇬🇧 Ingliz tili",
+        "teachers": {
+            "ingliz_1": "Yo'ldoshev Bekmirza",
+            "ingliz_2": "Meyliyeva Lobar",
+            "ingliz_3": "Nazarov Asliddin",
+            "ingliz_4": "Norov O",
+            "ingliz_5": "Oqboyeva Z",
+            "ingliz_6": "Azimova N",
+            "ingliz_7": "Abduxoliqov A",
+            "ingliz_8": "D.Shaniyazova",
+            "ingliz_9": "B.Mamatov",
+        },
+    },
+    "ona_tili": {
+        "name": "📖 Ona tili",
+        "teachers": {
+            "ona_1": "Irisova Sayyora",
+            "ona_2": "D.Shaniyazova",
+            "ona_3": "Meyliyeva Lobar",
+            "ona_4": "Nazarov Asliddin",
+            "ona_5": "Norov O",
+            "ona_6": "Abadov D",
+            "ona_7": "Xidirova F",
+            "ona_8": "Jalilova K",
+            "ona_9": "B.Mamatov",
+        },
+    },
+    "rus_tili": {
+        "name": "🇷🇺 Rus tili",
+        "teachers": {
+            "rus_1": "Batashov Inatilla",
+            "rus_2": "B.Mamatov",
+            "rus_3": "D.Shaniyazova",
+            "rus_4": "H.Yaratov",
+            "rus_5": "Meyliyeva Lobar",
+            "rus_6": "Norov O",
+            "rus_7": "Ergasheva D",
+            "rus_8": "Sevastyanova N",
+        },
+    },
+    "matematika": {
+        "name": "➗ Matematika",
+        "teachers": {
+            "mat_1": "Nurmatov Samandar",
+            "mat_2": "F.Jabborov",
+            "mat_3": "SH.Yusupova",
+            "mat_4": "Qo'ldosheva M",
+            "mat_5": "Umarov I",
+            "mat_6": "D.Bekmuradova",
+            "mat_7": "O.Ochilov",
+            "mat_8": "Nazarov Asliddin",
+        },
+    },
+    "informatika": {
+        "name": "💻 Informatika",
+        "teachers": {
+            "info_1": "Nurmatov Samandar",
+            "info_2": "F.Jabborov",
+            "info_3": "B.Mamatov",
+            "info_4": "SH.Eshmurodov",
+            "info_5": "Z.Suyarov",
+            "info_6": "H.Mallayev",
+            "info_7": "D.Bekmuradova",
+            "info_8": "O.Ochilov",
+            "info_9": "Meyliyeva Lobar",
+        },
+    },
+    "boshlangich_fanlar": {
+        "name": "🧒 Boshlang'ich fanlar",
+        "teachers": {
+            "bosh_1": "Shamsiyev J",
+            "bosh_2": "Z.Suyarov",
+            "bosh_3": "Umarov Lutfillo",
+            "bosh_4": "N.Baratova",
+            "bosh_5": "O.Ochilov",
+            "bosh_6": "Irisova Sayyora",
+            "bosh_7": "Zaripova Muslima",
+            "bosh_8": "Azizova Dilnoz",
+            "bosh_9": "Rajabova Xurshida",
+            "bosh_10": "G'oyemov U",
+            "bosh_11": "Qosimova G",
+            "bosh_12": "Qarshiyeva G",
+            "bosh_13": "Qurbonova H",
+        },
+    },
 }
 
 DB_NAME = "votes.db"
@@ -48,6 +130,7 @@ CREATE TABLE IF NOT EXISTS votes (
     user_id INTEGER PRIMARY KEY,
     full_name TEXT,
     username TEXT,
+    subject_key TEXT NOT NULL,
     teacher_key TEXT NOT NULL,
     voted_at TEXT
 )
@@ -59,17 +142,22 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 )
 """)
-conn.commit()
 
+conn.commit()
 
 # =========================
 # BAZA YORDAMCHI
 # =========================
-def ensure_column_exists():
+def ensure_votes_columns():
     cursor.execute("PRAGMA table_info(votes)")
     columns = [row[1] for row in cursor.fetchall()]
+
     if "voted_at" not in columns:
         cursor.execute("ALTER TABLE votes ADD COLUMN voted_at TEXT")
+        conn.commit()
+
+    if "subject_key" not in columns:
+        cursor.execute("ALTER TABLE votes ADD COLUMN subject_key TEXT")
         conn.commit()
 
 
@@ -93,12 +181,11 @@ def init_settings():
         set_setting("voting_open", "1")
 
 
-ensure_column_exists()
+ensure_votes_columns()
 init_settings()
 
-
 # =========================
-# ASOSIY FUNKSIYALAR
+# ASOSIY YORDAMCHI FUNKSIYALAR
 # =========================
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
@@ -121,14 +208,15 @@ def has_voted(user_id: int) -> bool:
     return cursor.fetchone() is not None
 
 
-def save_vote(user_id: int, full_name: str, username: str, teacher_key: str):
+def save_vote(user_id: int, full_name: str, username: str, subject_key: str, teacher_key: str):
     cursor.execute("""
-        INSERT INTO votes (user_id, full_name, username, teacher_key, voted_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO votes (user_id, full_name, username, subject_key, teacher_key, voted_at)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, (
         user_id,
         full_name,
         username,
+        subject_key,
         teacher_key,
         datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ))
@@ -151,32 +239,53 @@ def build_progress_bar(percent: float, length: int = 10) -> str:
     return "█" * filled + "░" * empty
 
 
+def get_subject_name(subject_key: str) -> str:
+    return SUBJECTS.get(subject_key, {}).get("name", subject_key)
+
+
+def get_teacher_name(subject_key: str, teacher_key: str) -> str:
+    return SUBJECTS.get(subject_key, {}).get("teachers", {}).get(teacher_key, teacher_key)
+
+
 def get_results_text() -> str:
     total_votes = get_total_votes()
     lines = ["📊 <b>Ovoz berish natijalari</b>\n"]
 
-    for key, name in TEACHERS.items():
-        cursor.execute("SELECT COUNT(*) FROM votes WHERE teacher_key = ?", (key,))
-        count = cursor.fetchone()[0]
-        percent = (count / total_votes * 100) if total_votes > 0 else 0
-        bar = build_progress_bar(percent)
+    for subject_key, subject_data in SUBJECTS.items():
+        lines.append(f"<b>{subject_data['name']}</b>")
 
-        lines.append(
-            f"👩‍🏫 <b>{name}</b>\n"
-            f"{bar} {percent:.1f}% | {count} ta\n"
-        )
+        for teacher_key, teacher_name in subject_data["teachers"].items():
+            cursor.execute("""
+                SELECT COUNT(*)
+                FROM votes
+                WHERE subject_key = ? AND teacher_key = ?
+            """, (subject_key, teacher_key))
+            count = cursor.fetchone()[0]
+            percent = (count / total_votes * 100) if total_votes > 0 else 0
+            bar = build_progress_bar(percent)
+
+            lines.append(
+                f"<b>{teacher_name}</b>\n"
+                f"{bar} {percent:.1f}% | {count} ta"
+            )
+
+        lines.append("")
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
     lines.append(
         f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
         f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
     )
-    return "\n".join(lines)
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        return text[:4000] + "\n\n... matn uzun bo‘lgani uchun qisqartirildi"
+    return text
 
 
 def get_users_text() -> str:
     cursor.execute("""
-        SELECT user_id, full_name, username, teacher_key, voted_at
+        SELECT user_id, full_name, username, subject_key, teacher_key, voted_at
         FROM votes
         ORDER BY voted_at DESC
     """)
@@ -188,16 +297,20 @@ def get_users_text() -> str:
     lines = [f"👥 <b>Kim kimga ovoz berdi</b>\n\nJami: {len(rows)} ta foydalanuvchi\n"]
 
     for i, row in enumerate(rows, start=1):
-        user_id, full_name, username, teacher_key, voted_at = row
-        teacher_name = TEACHERS.get(teacher_key, teacher_key)
+        user_id, full_name, username, subject_key, teacher_key, voted_at = row
+
+        subject_name = get_subject_name(subject_key)
+        teacher_name = get_teacher_name(subject_key, teacher_key)
 
         line = f"{i}. <b>{full_name or 'Noma’lum'}</b>"
         if username:
             line += f" (@{username})"
-        line += f"\n   → {teacher_name}"
+        line += f"\n   → Fan: {subject_name}"
+        line += f"\n   → O‘qituvchi: {teacher_name}"
         line += f"\n   → ID: <code>{user_id}</code>"
         if voted_at:
             line += f"\n   → {voted_at}"
+
         lines.append(line)
 
     text = "\n\n".join(lines)
@@ -210,7 +323,7 @@ def export_votes_to_csv() -> str:
     filename = "votes_export.csv"
 
     cursor.execute("""
-        SELECT user_id, full_name, username, teacher_key, voted_at
+        SELECT user_id, full_name, username, subject_key, teacher_key, voted_at
         FROM votes
         ORDER BY voted_at DESC
     """)
@@ -218,15 +331,15 @@ def export_votes_to_csv() -> str:
 
     with open(filename, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
-        writer.writerow(["User ID", "Full Name", "Username", "Teacher", "Voted At"])
+        writer.writerow(["User ID", "Full Name", "Username", "Subject", "Teacher", "Voted At"])
 
-        for user_id, full_name, username, teacher_key, voted_at in rows:
-            teacher_name = TEACHERS.get(teacher_key, teacher_key)
+        for user_id, full_name, username, subject_key, teacher_key, voted_at in rows:
             writer.writerow([
                 user_id,
                 full_name or "",
                 username or "",
-                teacher_name,
+                get_subject_name(subject_key),
+                get_teacher_name(subject_key, teacher_key),
                 voted_at or ""
             ])
 
@@ -253,17 +366,16 @@ async def safe_edit_message(
 ):
     try:
         await callback.message.edit_text(
-            text,
+            text=text,
             parse_mode="HTML",
             reply_markup=reply_markup
         )
     except Exception:
         await callback.message.answer(
-            text,
+            text=text,
             parse_mode="HTML",
             reply_markup=reply_markup
         )
-
 
 # =========================
 # KLAVIATURALAR
@@ -295,18 +407,41 @@ def home_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def teachers_keyboard() -> InlineKeyboardMarkup:
+def subjects_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
 
-    items = list(TEACHERS.items())
-    for i in range(0, len(items), 2):
+    for subject_key, subject_data in SUBJECTS.items():
+        kb.row(
+            InlineKeyboardButton(
+                text=subject_data["name"],
+                callback_data=f"subject:{subject_key}"
+            )
+        )
+
+    kb.row(
+        InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
+    )
+    return kb.as_markup()
+
+
+def teachers_keyboard(subject_key: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    teachers = list(SUBJECTS[subject_key]["teachers"].items())
+
+    for i in range(0, len(teachers), 2):
         row_buttons = []
-        for key, name in items[i:i + 2]:
+        for teacher_key, teacher_name in teachers[i:i + 2]:
             row_buttons.append(
-                InlineKeyboardButton(text=name, callback_data=f"vote:{key}")
+                InlineKeyboardButton(
+                    text=teacher_name,
+                    callback_data=f"vote:{subject_key}:{teacher_key}"
+                )
             )
         kb.row(*row_buttons)
 
+    kb.row(
+        InlineKeyboardButton(text="⬅️ Fanlarga qaytish", callback_data="go_vote_panel")
+    )
     kb.row(
         InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home")
     )
@@ -376,7 +511,6 @@ def admin_only_back_keyboard() -> InlineKeyboardMarkup:
     )
     return kb.as_markup()
 
-
 # =========================
 # MATNLAR
 # =========================
@@ -386,9 +520,29 @@ def get_welcome_text() -> str:
         "Quyidagi bosqichlarni bajaring:\n"
         "1. Kanalga obuna bo‘ling\n"
         "2. Obunani tasdiqlang\n"
-        "3. O‘qituvchini tanlang\n"
-        "4. Natijalarni ko‘ring\n\n"
+        "3. Fanni tanlang\n"
+        "4. O‘qituvchini tanlang\n"
+        "5. Ovoz bering\n\n"
         "👇 Davom etish uchun tugmalardan foydalaning."
+    )
+
+
+def get_home_text() -> str:
+    return (
+        "🏠 <b>Bosh menyu</b>\n\n"
+        "Kerakli bo‘limni tanlang:"
+    )
+
+
+def get_help_text() -> str:
+    return (
+        "ℹ️ <b>Yordam</b>\n\n"
+        "• Avval kanalga obuna bo‘ling\n"
+        "• So‘ng obunani tasdiqlang\n"
+        "• Avval fan tanlanadi\n"
+        "• Keyin o‘qituvchi tanlanadi\n"
+        "• Har bir foydalanuvchi faqat 1 marta ovoz bera oladi\n"
+        "• Natijalarni istalgan payt ko‘rishingiz mumkin"
     )
 
 
@@ -408,27 +562,17 @@ def get_closed_text() -> str:
     )
 
 
-def get_vote_select_text() -> str:
+def get_subject_select_text() -> str:
     return (
-        "🗳 <b>O‘qituvchini tanlang</b>\n\n"
-        "Quyidagi nomzodlardan biriga ovoz bering:"
+        "🗂 <b>Fanni tanlang</b>\n\n"
+        "Quyidagi fanlardan birini tanlang:"
     )
 
 
-def get_home_text() -> str:
+def get_teacher_select_text(subject_key: str) -> str:
     return (
-        "🏠 <b>Bosh menyu</b>\n\n"
-        "Kerakli bo‘limni tanlang:"
-    )
-
-
-def get_help_text() -> str:
-    return (
-        "ℹ️ <b>Yordam</b>\n\n"
-        "• Avval kanalga obuna bo‘ling\n"
-        "• So‘ng obunani tasdiqlang\n"
-        "• Bitta o‘qituvchiga 1 marta ovoz bering\n"
-        "• Natijalarni istalgan payt ko‘rishingiz mumkin"
+        f"{SUBJECTS[subject_key]['name']}\n\n"
+        f"<b>O‘qituvchini tanlang:</b>"
     )
 
 
@@ -439,7 +583,6 @@ def get_admin_panel_text() -> str:
         f"Voting holati: {status_text}\n"
         f"Jami ovozlar: {get_total_votes()}"
     )
-
 
 # =========================
 # START
@@ -474,11 +617,10 @@ async def start_handler(message: Message):
         return
 
     await message.answer(
-        get_vote_select_text(),
+        get_subject_select_text(),
         parse_mode="HTML",
-        reply_markup=teachers_keyboard()
+        reply_markup=subjects_keyboard()
     )
-
 
 # =========================
 # USER CALLBACKLAR
@@ -517,9 +659,41 @@ async def go_vote_panel_handler(callback: CallbackQuery):
         await callback.answer()
         return
 
-    await safe_edit_message(callback, get_vote_select_text(), teachers_keyboard())
+    await safe_edit_message(callback, get_subject_select_text(), subjects_keyboard())
     await callback.answer()
 
+
+@dp.callback_query(F.data.startswith("subject:"))
+async def subject_select_handler(callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    if not await check_user_subscription(user_id):
+        await safe_edit_message(callback, get_welcome_text(), subscription_keyboard())
+        await callback.answer()
+        return
+
+    if has_voted(user_id):
+        await safe_edit_message(callback, get_already_voted_text(), home_keyboard())
+        await callback.answer()
+        return
+
+    if not is_voting_open():
+        await safe_edit_message(callback, get_closed_text(), home_keyboard())
+        await callback.answer()
+        return
+
+    subject_key = callback.data.split(":")[1]
+
+    if subject_key not in SUBJECTS:
+        await callback.answer("Noto‘g‘ri fan tanlandi.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        get_teacher_select_text(subject_key),
+        teachers_keyboard(subject_key)
+    )
+    await callback.answer()
 
 # =========================
 # OBUNA TEKSHIRISH
@@ -545,11 +719,10 @@ async def check_subscription_handler(callback: CallbackQuery):
 
     await safe_edit_message(
         callback,
-        "✅ <b>Obuna tasdiqlandi</b>\n\nEndi o‘qituvchini tanlang:",
-        teachers_keyboard()
+        "✅ <b>Obuna tasdiqlandi</b>\n\nEndi fanni tanlang:",
+        subjects_keyboard()
     )
     await callback.answer()
-
 
 # =========================
 # OVOZ BERISH
@@ -571,25 +744,35 @@ async def vote_handler(callback: CallbackQuery):
         await callback.answer("Siz faqat 1 marta ovoz bera olasiz.", show_alert=True)
         return
 
-    teacher_key = callback.data.split(":")[1]
-    if teacher_key not in TEACHERS:
+    parts = callback.data.split(":")
+    if len(parts) != 3:
         await callback.answer("Noto‘g‘ri tanlov.", show_alert=True)
+        return
+
+    _, subject_key, teacher_key = parts
+
+    if subject_key not in SUBJECTS:
+        await callback.answer("Noto‘g‘ri fan.", show_alert=True)
+        return
+
+    if teacher_key not in SUBJECTS[subject_key]["teachers"]:
+        await callback.answer("Noto‘g‘ri o‘qituvchi.", show_alert=True)
         return
 
     full_name = callback.from_user.full_name or "Noma’lum"
     username = callback.from_user.username or ""
 
-    save_vote(user_id, full_name, username, teacher_key)
+    save_vote(user_id, full_name, username, subject_key, teacher_key)
 
     await safe_edit_message(
         callback,
         f"✅ <b>Ovoz muvaffaqiyatli qabul qilindi</b>\n\n"
-        f"👤 <b>Tanlovingiz:</b> {TEACHERS[teacher_key]}\n\n"
+        f"<b>Fan:</b> {SUBJECTS[subject_key]['name']}\n"
+        f"<b>Tanlovingiz:</b> {SUBJECTS[subject_key]['teachers'][teacher_key]}\n\n"
         f"Rahmat, sizning ovozingiz saqlandi.",
         after_vote_keyboard()
     )
     await callback.answer("Ovozingiz qabul qilindi!")
-
 
 # =========================
 # RESULTS - USER
@@ -621,7 +804,6 @@ async def results_handler(message: Message):
         parse_mode="HTML",
         reply_markup=results_keyboard_user()
     )
-
 
 # =========================
 # ADMIN BUYRUQLAR
@@ -695,7 +877,6 @@ async def admin_reset_handler(message: Message):
         reply_markup=reset_confirm_keyboard()
     )
 
-
 # =========================
 # ADMIN CALLBACKLAR
 # =========================
@@ -743,10 +924,10 @@ async def admin_users_callback(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    await callback.message.answer(
+    await safe_edit_message(
+        callback,
         get_users_text(),
-        parse_mode="HTML",
-        reply_markup=admin_only_back_keyboard()
+        admin_only_back_keyboard()
     )
     await callback.answer()
 
@@ -838,7 +1019,6 @@ async def admin_reset_callback(callback: CallbackQuery):
     )
     await callback.answer("Reset qilindi!")
 
-
 # =========================
 # TEXT HANDLER
 # =========================
@@ -849,7 +1029,6 @@ async def text_results_handler(message: Message):
         parse_mode="HTML",
         reply_markup=results_keyboard_user()
     )
-
 
 # =========================
 # MAIN

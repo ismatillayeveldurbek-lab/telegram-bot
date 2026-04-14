@@ -29,7 +29,7 @@ ADMIN_IDS = [
     if x.strip().isdigit()
 ]
 
-FACEBOOK_URL = "https://www.facebook.com/share/1App2cfB8c/"
+FACEBOOK_URL = "https://www.facebook.com/share/1E4ZVePTh4/"
 INSTAGRAM_URL = "https://www.instagram.com/pedagogikmahorat"
 
 DATA_DIR = os.getenv("DATA_DIR", "/app/data")
@@ -40,7 +40,7 @@ EXPORT_FILE = os.path.join(DATA_DIR, "votes_export.csv")
 
 SUBJECTS = {
     "ingliz_tili": {
-        "name": "🇬🇧 Ingliz tili",
+        "name": "Ingliz tili",
         "teachers": {
             "ingliz_1": "Yo'ldoshev Bekmirza",
             "ingliz_2": "Meyliyeva Lobar",
@@ -54,7 +54,7 @@ SUBJECTS = {
         },
     },
     "ona_tili": {
-        "name": "📖 Ona tili",
+        "name": "Ona tili",
         "teachers": {
             "ona_1": "Irisova Sayyora",
             "ona_2": "D.Shaniyazova",
@@ -68,7 +68,7 @@ SUBJECTS = {
         },
     },
     "rus_tili": {
-        "name": "🇷🇺 Rus tili",
+        "name": "Rus tili",
         "teachers": {
             "rus_1": "Batashov Inatilla",
             "rus_2": "B.Mamatov",
@@ -81,7 +81,7 @@ SUBJECTS = {
         },
     },
     "matematika": {
-        "name": "➗ Matematika",
+        "name": "Matematika",
         "teachers": {
             "mat_1": "Nurmatov Samandar",
             "mat_2": "F.Jabborov",
@@ -94,7 +94,7 @@ SUBJECTS = {
         },
     },
     "informatika": {
-        "name": "💻 Informatika",
+        "name": "Informatika",
         "teachers": {
             "info_1": "Nurmatov Samandar",
             "info_2": "F.Jabborov",
@@ -108,7 +108,7 @@ SUBJECTS = {
         },
     },
     "boshlangich_fanlar": {
-        "name": "🧒 Boshlang'ich fanlar",
+        "name": "Boshlang'ich fanlar",
         "teachers": {
             "bosh_1": "Shamsiyev J",
             "bosh_2": "Z.Suyarov",
@@ -283,7 +283,10 @@ def get_general_results_text() -> str:
         )
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
+    lines.append(
+        f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
+        f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
+    )
 
     text = "\n".join(lines)
     return text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
@@ -313,7 +316,10 @@ def get_subject_results_text(subject_key: str) -> str:
         )
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
+    lines.append(
+        f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
+        f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
+    )
 
     text = "\n".join(lines)
     return text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
@@ -594,8 +600,8 @@ def get_welcome_text() -> str:
     return (
         "🚀 <b>Botdan foydalanish uchun quyidagilarni bajaring:</b>\n\n"
         "1️⃣ 📢 Telegram kanalga obuna bo‘ling\n"
-        "2️⃣ 📘 Facebook sahifani kuzating\n"
-        "3️⃣ 📸 Instagram sahifani kuzating\n\n"
+        "2️⃣ 📘 Facebook sahifaga obuna bo‘ling\n"
+        "3️⃣ 📸 Instagram sahifaga obuna bo‘ling\n\n"
         "👇 Barchasini bajargach, <b>Tekshirish</b> tugmasini bosing"
     )
 
@@ -608,7 +614,8 @@ def get_help_text() -> str:
     return (
         "ℹ️ <b>Yordam</b>\n\n"
         "• Avval Telegram kanalga obuna bo‘ling\n"
-        "• Facebook va Instagram sahifalarga ham o‘ting\n"
+        "• Facebook sahifaga obuna bo‘ling\n"
+        "• Instagram sahifaga obuna bo‘ling\n"
         "• Ovoz berish uchun fan tanlanadi\n"
         "• Keyin o‘qituvchi tanlanadi\n"
         "• Har bir foydalanuvchi faqat 1 marta ovoz bera oladi\n"

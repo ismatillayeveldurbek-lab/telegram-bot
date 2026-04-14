@@ -21,22 +21,17 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # =========================
 # SOZLAMALAR
 # =========================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE")
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@botuchun10")
-
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE") 
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@botuchun10") 
 ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "5298063089")
 ADMIN_IDS = [
     int(x.strip()) for x in ADMIN_IDS_RAW.split(",")
     if x.strip().isdigit()
 ]
 
-DATA_DIR = os.getenv("DATA_DIR", "/app/data")
-os.makedirs(DATA_DIR, exist_ok=True)
+FACEBOOK_URL = "https://www.facebook.com/share/1App2cfB8c/"
+INSTAGRAM_URL = "https://www.instagram.com/pedagogikmahorat"
 
-DB_NAME = os.path.join(DATA_DIR, "votes.db")
-EXPORT_FILE = os.path.join(DATA_DIR, "votes_export.csv")
-
-# Railway volume uchun papka
 DATA_DIR = os.getenv("DATA_DIR", "/app/data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -140,7 +135,6 @@ if not BOT_TOKEN:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# SQLite
 conn = sqlite3.connect(DB_NAME, check_same_thread=False)
 cursor = conn.cursor()
 
@@ -183,7 +177,7 @@ def init_db():
 
 
 # =========================
-# YORDAMCHI FUNKSIYALAR
+# YORDAMCHI
 # =========================
 def get_setting(key: str, default: str = "") -> str:
     cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
@@ -289,10 +283,7 @@ def get_general_results_text() -> str:
         )
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(
-        f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
-        f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
-    )
+    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
 
     text = "\n".join(lines)
     return text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
@@ -322,10 +313,7 @@ def get_subject_results_text(subject_key: str) -> str:
         )
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(
-        f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
-        f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
-    )
+    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
 
     text = "\n".join(lines)
     return text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
@@ -434,16 +422,30 @@ async def safe_edit_message(
 # =========================
 def subscription_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
+
     kb.row(
         InlineKeyboardButton(
-            text="📢 Obuna bo‘lish",
+            text="📢 Telegram kanal",
             url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
+            text="📘 Facebook sahifa",
+            url=FACEBOOK_URL
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
+            text="📸 Instagram sahifa",
+            url=INSTAGRAM_URL
         )
     )
     kb.row(
         InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_subscription"),
         InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results_menu_user")
     )
+
     return kb.as_markup()
 
 
@@ -590,11 +592,11 @@ def users_keyboard_admin() -> InlineKeyboardMarkup:
 # =========================
 def get_welcome_text() -> str:
     return (
-        "🎓 <b>Ovoz berish botiga xush kelibsiz!</b>\n\n"
-        "Quyidagi bosqichlarni bajaring:\n"
-        "1. Kanalga obuna bo‘ling\n"
-        "2. Obunani tasdiqlang\n"
-        "3. Bosh menyudan kerakli bo‘limni tanlang"
+        "🚀 <b>Botdan foydalanish uchun quyidagilarni bajaring:</b>\n\n"
+        "1️⃣ 📢 Telegram kanalga obuna bo‘ling\n"
+        "2️⃣ 📘 Facebook sahifani kuzating\n"
+        "3️⃣ 📸 Instagram sahifani kuzating\n\n"
+        "👇 Barchasini bajargach, <b>Tekshirish</b> tugmasini bosing"
     )
 
 
@@ -605,7 +607,8 @@ def get_home_text() -> str:
 def get_help_text() -> str:
     return (
         "ℹ️ <b>Yordam</b>\n\n"
-        "• Avval kanalga obuna bo‘ling\n"
+        "• Avval Telegram kanalga obuna bo‘ling\n"
+        "• Facebook va Instagram sahifalarga ham o‘ting\n"
         "• Ovoz berish uchun fan tanlanadi\n"
         "• Keyin o‘qituvchi tanlanadi\n"
         "• Har bir foydalanuvchi faqat 1 marta ovoz bera oladi\n"
@@ -755,12 +758,12 @@ async def check_subscription_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
 
     if not await check_user_subscription(user_id):
-        await callback.answer("Siz hali kanalga obuna bo‘lmagansiz.", show_alert=True)
+        await callback.answer("Avval Telegram kanalga obuna bo‘ling.", show_alert=True)
         return
 
     await safe_edit_message(
         callback,
-        "✅ <b>Obuna tasdiqlandi</b>\n\nEndi bosh menyudan kerakli bo‘limni tanlang:",
+        "✅ <b>Tekshiruv muvaffaqiyatli o‘tdi</b>\n\nEndi bosh menyudan kerakli bo‘limni tanlang:",
         home_keyboard()
     )
     await callback.answer("Tasdiqlandi")
@@ -771,7 +774,7 @@ async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
 
     if not await check_user_subscription(user_id):
-        await callback.answer("Avval kanalga obuna bo‘ling.", show_alert=True)
+        await callback.answer("Avval Telegram kanalga obuna bo‘ling.", show_alert=True)
         return
 
     if not is_voting_open():

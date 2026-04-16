@@ -137,22 +137,24 @@ dp = Dispatcher()
 conn = sqlite3.connect(DB_NAME, check_same_thread=False)
 cursor = conn.cursor()
 
-
 # =========================
 # TRANSLIT
 # =========================
 def latin_to_cyrillic_text(text: str) -> str:
-    replacements = [
+    pairs = [
         ("O‘", "Ў"), ("o‘", "ў"), ("G‘", "Ғ"), ("g‘", "ғ"),
         ("O'", "Ў"), ("o'", "ў"), ("G'", "Ғ"), ("g'", "ғ"),
-        ("Sh", "Ш"), ("sh", "ш"), ("Ch", "Ч"), ("ch", "ч"),
-        ("Ya", "Я"), ("ya", "я"), ("Yo", "Ё"), ("yo", "ё"),
-        ("Yu", "Ю"), ("yu", "ю"), ("Ts", "Ц"), ("ts", "ц"),
+        ("Sh", "Ш"), ("sh", "ш"),
+        ("Ch", "Ч"), ("ch", "ч"),
+        ("Ya", "Я"), ("ya", "я"),
+        ("Yo", "Ё"), ("yo", "ё"),
+        ("Yu", "Ю"), ("yu", "ю"),
+        ("Ts", "Ц"), ("ts", "ц"),
     ]
-    for old, new in replacements:
+    for old, new in pairs:
         text = text.replace(old, new)
 
-    mapping = {
+    table = str.maketrans({
         "A": "А", "a": "а",
         "B": "Б", "b": "б",
         "D": "Д", "d": "д",
@@ -177,16 +179,13 @@ def latin_to_cyrillic_text(text: str) -> str:
         "X": "Х", "x": "х",
         "Y": "Й", "y": "й",
         "Z": "З", "z": "з",
-        "'": "ъ",
-        "’": "ъ",
-        "`": "ъ",
-    }
-
-    return "".join(mapping.get(ch, ch) for ch in text)
+        "`": "ъ", "’": "ъ", "'": "ъ",
+    })
+    return text.translate(table)
 
 
 def cyrillic_to_latin_text(text: str) -> str:
-    replacements = [
+    pairs = [
         ("Ў", "O'"), ("ў", "o'"),
         ("Ғ", "G'"), ("ғ", "g'"),
         ("Ш", "Sh"), ("ш", "sh"),
@@ -196,10 +195,10 @@ def cyrillic_to_latin_text(text: str) -> str:
         ("Ю", "Yu"), ("ю", "yu"),
         ("Ц", "Ts"), ("ц", "ts"),
     ]
-    for old, new in replacements:
+    for old, new in pairs:
         text = text.replace(old, new)
 
-    mapping = {
+    table = str.maketrans({
         "А": "A", "а": "a",
         "Б": "B", "б": "b",
         "Д": "D", "д": "d",
@@ -226,76 +225,59 @@ def cyrillic_to_latin_text(text: str) -> str:
         "З": "Z", "з": "z",
         "Ъ": "'", "ъ": "'",
         "Ь": "", "ь": "",
-    }
+    })
+    return text.translate(table)
 
-    return "".join(mapping.get(ch, ch) for ch in text)
 
-
-def translit_html_safe(text: str, to_script: str) -> str:
+def translit_html_safe(text: str, script: str) -> str:
     parts = re.split(r"(<[^>]+>)", text)
     result = []
-
     for part in parts:
         if part.startswith("<") and part.endswith(">"):
             result.append(part)
         else:
-            if to_script == "cyrillic":
+            if script == "cyrillic":
                 result.append(latin_to_cyrillic_text(part))
             else:
                 result.append(cyrillic_to_latin_text(part))
-
     return "".join(result)
 
-
 # =========================
-# BAZA
+# DB
 # =========================
 def init_db():
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS votes (
-        user_id INTEGER PRIMARY KEY,
-        full_name TEXT,
-        username TEXT,
-        subject_key TEXT NOT NULL,
-        teacher_key TEXT NOT NULL,
-        voted_at TEXT
-    )
+        CREATE TABLE IF NOT EXISTS votes (
+            user_id INTEGER PRIMARY KEY,
+            full_name TEXT,
+            username TEXT,
+            subject_key TEXT NOT NULL,
+            teacher_key TEXT NOT NULL,
+            voted_at TEXT
+        )
     """)
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
     """)
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS user_prefs (
-        user_id INTEGER PRIMARY KEY,
-        script TEXT DEFAULT 'latin',
-        access_granted INTEGER DEFAULT 0
-    )
+        CREATE TABLE IF NOT EXISTS user_prefs (
+            user_id INTEGER PRIMARY KEY,
+            script TEXT DEFAULT 'latin',
+            access_granted INTEGER DEFAULT 0
+        )
     """)
+
     conn.commit()
-
-    cursor.execute("PRAGMA table_info(votes)")
-    columns = [row[1] for row in cursor.fetchall()]
-
-    if "subject_key" not in columns:
-        cursor.execute("ALTER TABLE votes ADD COLUMN subject_key TEXT")
-        conn.commit()
-
-    if "voted_at" not in columns:
-        cursor.execute("ALTER TABLE votes ADD COLUMN voted_at TEXT")
-        conn.commit()
 
     if get_setting("voting_open", "") == "":
         set_setting("voting_open", "1")
 
 
-# =========================
-# YORDAMCHI
-# =========================
 def get_setting(key: str, default: str = "") -> str:
     cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
     row = cursor.fetchone()
@@ -311,7 +293,7 @@ def set_setting(key: str, value: str):
     conn.commit()
 
 
-def ensure_user_pref(user_id: int):
+def ensure_user(user_id: int):
     cursor.execute("""
         INSERT INTO user_prefs (user_id, script, access_granted)
         VALUES (?, 'latin', 0)
@@ -321,54 +303,39 @@ def ensure_user_pref(user_id: int):
 
 
 def get_user_script(user_id: int) -> str:
-    ensure_user_pref(user_id)
+    ensure_user(user_id)
     cursor.execute("SELECT script FROM user_prefs WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     return row[0] if row else "latin"
 
 
 def set_user_script(user_id: int, script: str):
-    ensure_user_pref(user_id)
-    cursor.execute("""
-        UPDATE user_prefs
-        SET script = ?
-        WHERE user_id = ?
-    """, (script, user_id))
+    ensure_user(user_id)
+    cursor.execute("UPDATE user_prefs SET script = ? WHERE user_id = ?", (script, user_id))
     conn.commit()
 
 
 def has_access(user_id: int) -> bool:
-    ensure_user_pref(user_id)
+    ensure_user(user_id)
     cursor.execute("SELECT access_granted FROM user_prefs WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     return bool(row[0]) if row else False
 
 
 def grant_access(user_id: int):
-    ensure_user_pref(user_id)
-    cursor.execute("""
-        UPDATE user_prefs
-        SET access_granted = 1
-        WHERE user_id = ?
-    """, (user_id,))
+    ensure_user(user_id)
+    cursor.execute("UPDATE user_prefs SET access_granted = 1 WHERE user_id = ?", (user_id,))
     conn.commit()
 
 
 def reset_access(user_id: int):
-    ensure_user_pref(user_id)
-    cursor.execute("""
-        UPDATE user_prefs
-        SET access_granted = 0
-        WHERE user_id = ?
-    """, (user_id,))
+    ensure_user(user_id)
+    cursor.execute("UPDATE user_prefs SET access_granted = 0 WHERE user_id = ?", (user_id,))
     conn.commit()
 
 
 def tr(user_id: int, text: str) -> str:
-    script = get_user_script(user_id)
-    if script == "cyrillic":
-        return translit_html_safe(text, "cyrillic")
-    return text
+    return translit_html_safe(text, get_user_script(user_id))
 
 
 def is_admin(user_id: int) -> bool:
@@ -433,11 +400,11 @@ def build_progress_bar(percent: float, length: int = 14) -> str:
 
 
 def get_all_teachers_flat():
-    result = []
+    items = []
     for subject_key, subject_data in SUBJECTS.items():
         for teacher_key, teacher_name in subject_data["teachers"].items():
-            result.append((subject_key, teacher_key, teacher_name))
-    return result
+            items.append((subject_key, teacher_key, teacher_name))
+    return items
 
 
 def get_general_results_text(user_id: int) -> str:
@@ -460,22 +427,19 @@ def get_general_results_text(user_id: int) -> str:
         )
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(
-        f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
-        f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
-    )
+    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
 
     text = "\n".join(lines)
-    text = text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n... qisqartirildi"
     return tr(user_id, text)
 
 
 def get_subject_results_text(user_id: int, subject_key: str) -> str:
-    total_votes = get_total_votes()
-
     if subject_key not in SUBJECTS:
         return tr(user_id, "Noto'g'ri fan.")
 
+    total_votes = get_total_votes()
     lines = [f"📊 <b>{get_subject_name(subject_key)} bo'yicha natijalar</b>\n"]
 
     for teacher_key, teacher_name in SUBJECTS[subject_key]["teachers"].items():
@@ -494,13 +458,11 @@ def get_subject_results_text(user_id: int, subject_key: str) -> str:
         )
 
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(
-        f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> "
-        f"{'Ochiq' if is_voting_open() else 'Yopiq'}"
-    )
+    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
 
     text = "\n".join(lines)
-    text = text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n... qisqartirildi"
     return tr(user_id, text)
 
 
@@ -518,7 +480,8 @@ def get_users_text(user_id: int) -> str:
     lines = [f"👥 <b>Kim kimga ovoz berdi</b>\n\nJami: {len(rows)} ta foydalanuvchi\n"]
 
     for i, (uid, full_name, username, subject_key, teacher_key, voted_at) in enumerate(rows, start=1):
-        line = f'{i}. <b>{full_name or "Noma\'lum"}</b>'
+        safe_name = full_name or "Noma'lum"
+        line = f"{i}. <b>{safe_name}</b>"
         if username:
             line += f" (@{username})"
         line += f"\n   → Fan: {get_subject_name(subject_key)}"
@@ -529,7 +492,8 @@ def get_users_text(user_id: int) -> str:
         lines.append(line)
 
     text = "\n\n".join(lines)
-    text = text[:4000] + "\n\n... qisqartirildi" if len(text) > 4000 else text
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n... qisqartirildi"
     return tr(user_id, text)
 
 
@@ -544,7 +508,6 @@ def export_votes_to_csv() -> str:
     with open(EXPORT_FILE, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
         writer.writerow(["User ID", "Full Name", "Username", "Subject", "Teacher", "Voted At"])
-
         for user_id, full_name, username, subject_key, teacher_key, voted_at in rows:
             writer.writerow([
                 user_id,
@@ -572,11 +535,7 @@ async def check_user_subscription(user_id: int) -> bool:
         return False
 
 
-async def safe_edit_message(
-    callback: CallbackQuery,
-    text: str,
-    reply_markup: InlineKeyboardMarkup | None = None
-):
+async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup: InlineKeyboardMarkup | None = None):
     try:
         await callback.message.edit_text(
             text=text,
@@ -585,13 +544,8 @@ async def safe_edit_message(
         )
     except TelegramBadRequest as e:
         error_text = str(e).lower()
-
         if "message is not modified" in error_text:
             return
-
-        if "there is no text in the message to edit" in error_text:
-            return
-
         try:
             await callback.message.answer(
                 text=text,
@@ -603,9 +557,8 @@ async def safe_edit_message(
     except Exception:
         return
 
-
 # =========================
-# MATNLAR
+# TEXTS
 # =========================
 def get_welcome_text(user_id: int) -> str:
     return tr(
@@ -619,15 +572,7 @@ def get_welcome_text(user_id: int) -> str:
 
 
 def get_home_text(user_id: int) -> str:
-    if has_access(user_id):
-        return tr(user_id, "🏠 <b>Bosh menyu</b>\n\nKerakli bo'limni tanlang:")
-    return tr(
-        user_id,
-        "🔐 <b>Avval obunani yakunlang</b>\n\n"
-        "Telegram, Facebook va Instagram sahifalarni ochib chiqing.\n"
-        "So'ng <b>Obunani tekshirish</b> tugmasini bosing.\n\n"
-        "✅ Tekshiruvdan keyin <b>Ovoz berish</b> tugmasi chiqadi."
-    )
+    return tr(user_id, "🏠 <b>Bosh menyu</b>\n\nKerakli bo'limni tanlang:")
 
 
 def get_help_text(user_id: int) -> str:
@@ -667,8 +612,7 @@ def get_subject_select_text(user_id: int) -> str:
 
 
 def get_teacher_select_text(user_id: int, subject_key: str) -> str:
-    text = f"{SUBJECTS[subject_key]['name']}\n\n<b>O'qituvchini tanlang:</b>"
-    return tr(user_id, text)
+    return tr(user_id, f"{SUBJECTS[subject_key]['name']}\n\n<b>O'qituvchini tanlang:</b>")
 
 
 def get_results_menu_text(user_id: int, is_admin_view: bool = False) -> str:
@@ -691,38 +635,29 @@ def get_admin_panel_text(user_id: int) -> str:
         f"Jami ovozlar: {get_total_votes()}"
     )
 
-
 # =========================
-# KLAVIATURALAR
+# KEYBOARDS
 # =========================
 def script_switch_button(user_id: int) -> InlineKeyboardButton:
-    current = get_user_script(user_id)
-    if current == "latin":
+    if get_user_script(user_id) == "latin":
         return InlineKeyboardButton(text="🔤 Krill", callback_data="set_script:cyrillic")
     return InlineKeyboardButton(text="🔤 Lotin", callback_data="set_script:latin")
 
 
 def subscription_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-
-    kb.row(
-        InlineKeyboardButton(
-            text=tr(user_id, "📢 Telegram kanal"),
-            url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
-        )
-    )
-    kb.row(
-        InlineKeyboardButton(
-            text=tr(user_id, "📘 Facebook sahifa"),
-            url=FACEBOOK_URL
-        )
-    )
-    kb.row(
-        InlineKeyboardButton(
-            text=tr(user_id, "📸 Instagram sahifa"),
-            url=INSTAGRAM_URL
-        )
-    )
+    kb.row(InlineKeyboardButton(
+        text=tr(user_id, "📢 Telegram kanal"),
+        url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
+    ))
+    kb.row(InlineKeyboardButton(
+        text=tr(user_id, "📘 Facebook sahifa"),
+        url=FACEBOOK_URL
+    ))
+    kb.row(InlineKeyboardButton(
+        text=tr(user_id, "📸 Instagram sahifa"),
+        url=INSTAGRAM_URL
+    ))
     kb.row(
         InlineKeyboardButton(text=tr(user_id, "✅ Tekshirish"), callback_data="check_subscription"),
         InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user")
@@ -755,12 +690,10 @@ def home_keyboard(user_id: int) -> InlineKeyboardMarkup:
 def subjects_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for subject_key, subject_data in SUBJECTS.items():
-        kb.row(
-            InlineKeyboardButton(
-                text=tr(user_id, subject_data["name"]),
-                callback_data=f"subject:{subject_key}"
-            )
-        )
+        kb.row(InlineKeyboardButton(
+            text=tr(user_id, subject_data["name"]),
+            callback_data=f"subject:{subject_key}"
+        ))
     kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"))
     return kb.as_markup()
 
@@ -772,12 +705,10 @@ def teachers_keyboard(user_id: int, subject_key: str) -> InlineKeyboardMarkup:
     for i in range(0, len(teachers), 2):
         row = []
         for teacher_key, teacher_name in teachers[i:i + 2]:
-            row.append(
-                InlineKeyboardButton(
-                    text=tr(user_id, teacher_name),
-                    callback_data=f"vote:{subject_key}:{teacher_key}"
-                )
-            )
+            row.append(InlineKeyboardButton(
+                text=tr(user_id, teacher_name),
+                callback_data=f"vote:{subject_key}:{teacher_key}"
+            ))
         kb.row(*row)
 
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Fanlarga qaytish"), callback_data="go_vote_panel"))
@@ -789,12 +720,10 @@ def results_menu_keyboard_user(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Umumiy"), callback_data="show_results_user:general"))
     for subject_key, subject_data in SUBJECTS.items():
-        kb.row(
-            InlineKeyboardButton(
-                text=tr(user_id, subject_data["name"]),
-                callback_data=f"show_results_user:{subject_key}"
-            )
-        )
+        kb.row(InlineKeyboardButton(
+            text=tr(user_id, subject_data["name"]),
+            callback_data=f"show_results_user:{subject_key}"
+        ))
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
     return kb.as_markup()
 
@@ -803,12 +732,10 @@ def results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Umumiy"), callback_data="show_results_admin:general"))
     for subject_key, subject_data in SUBJECTS.items():
-        kb.row(
-            InlineKeyboardButton(
-                text=tr(user_id, subject_data["name"]),
-                callback_data=f"show_results_admin:{subject_key}"
-            )
-        )
+        kb.row(InlineKeyboardButton(
+            text=tr(user_id, subject_data["name"]),
+            callback_data=f"show_results_admin:{subject_key}"
+        ))
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"))
     return kb.as_markup()
 
@@ -878,14 +805,13 @@ def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     )
     return kb.as_markup()
 
-
 # =========================
 # START
 # =========================
 @dp.message(Command("start"))
 async def start_handler(message: Message):
     user_id = message.from_user.id
-    ensure_user_pref(user_id)
+    ensure_user(user_id)
 
     if not await check_user_subscription(user_id):
         reset_access(user_id)
@@ -896,15 +822,21 @@ async def start_handler(message: Message):
         )
         return
 
-    await message.answer(
-        get_home_text(user_id),
-        parse_mode="HTML",
-        reply_markup=home_keyboard(user_id)
-    )
-
+    if has_access(user_id):
+        await message.answer(
+            get_home_text(user_id),
+            parse_mode="HTML",
+            reply_markup=home_keyboard(user_id)
+        )
+    else:
+        await message.answer(
+            get_welcome_text(user_id),
+            parse_mode="HTML",
+            reply_markup=subscription_keyboard(user_id)
+        )
 
 # =========================
-# SCRIPT TOGGLE
+# SCRIPT
 # =========================
 @dp.callback_query(F.data.startswith("set_script:"))
 async def set_script_handler(callback: CallbackQuery):
@@ -916,17 +848,24 @@ async def set_script_handler(callback: CallbackQuery):
         return
 
     set_user_script(user_id, script)
-    await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
-    await callback.answer("Til yozuvi o'zgartirildi")
 
+    if has_access(user_id):
+        await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+    else:
+        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+
+    await callback.answer(tr(user_id, "Til yozuvi o'zgartirildi"))
 
 # =========================
-# USER CALLBACKLAR
+# USER CALLBACKS
 # =========================
 @dp.callback_query(F.data == "go_home")
 async def go_home_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+    if has_access(user_id):
+        await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+    else:
+        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
     await callback.answer()
 
 
@@ -934,10 +873,31 @@ async def go_home_handler(callback: CallbackQuery):
 async def help_info_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
+    if has_access(user_id):
+        kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
+    else:
+        kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
     kb.row(script_switch_button(user_id))
     await safe_edit_message(callback, get_help_text(user_id), kb.as_markup())
     await callback.answer()
+
+
+@dp.callback_query(F.data == "check_subscription")
+async def check_subscription_handler(callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    if not await check_user_subscription(user_id):
+        reset_access(user_id)
+        await callback.answer(tr(user_id, "Avval Telegram kanalga obuna bo'ling."), show_alert=True)
+        return
+
+    grant_access(user_id)
+    await safe_edit_message(
+        callback,
+        tr(user_id, "✅ <b>Tekshiruv muvaffaqiyatli o'tdi</b>\n\nEndi bosh menyudan kerakli bo'limni tanlang:"),
+        home_keyboard(user_id)
+    )
+    await callback.answer(tr(user_id, "Tasdiqlandi"))
 
 
 @dp.callback_query(F.data == "go_vote_panel")
@@ -1008,24 +968,6 @@ async def subject_select_handler(callback: CallbackQuery):
     await callback.answer()
 
 
-@dp.callback_query(F.data == "check_subscription")
-async def check_subscription_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
-        await callback.answer(tr(user_id, "Avval Telegram kanalga obuna bo'ling."), show_alert=True)
-        return
-
-    grant_access(user_id)
-    await safe_edit_message(
-        callback,
-        tr(user_id, "✅ <b>Tekshiruv muvaffaqiyatli o'tdi</b>\n\nEndi bosh menyudan kerakli bo'limni tanlang:"),
-        home_keyboard(user_id)
-    )
-    await callback.answer(tr(user_id, "Tasdiqlandi"))
-
-
 @dp.callback_query(F.data.startswith("vote:"))
 async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -1080,9 +1022,8 @@ async def vote_handler(callback: CallbackQuery):
     await safe_edit_message(callback, tr(user_id, text), after_vote_keyboard(user_id))
     await callback.answer(tr(user_id, "Ovozingiz qabul qilindi!"))
 
-
 # =========================
-# RESULTS - USER
+# USER RESULTS
 # =========================
 @dp.callback_query(F.data == "show_results_menu_user")
 async def show_results_menu_user(callback: CallbackQuery):
@@ -1116,21 +1057,20 @@ async def refresh_results_user(callback: CallbackQuery):
 @dp.message(Command("results"))
 async def results_handler(message: Message):
     user_id = message.from_user.id
-    ensure_user_pref(user_id)
+    ensure_user(user_id)
     await message.answer(
         get_results_menu_text(user_id, False),
         parse_mode="HTML",
         reply_markup=results_menu_keyboard_user(user_id)
     )
 
-
 # =========================
-# ADMIN BUYRUQLAR
+# ADMIN
 # =========================
 @dp.message(Command("admin"))
 async def admin_panel_handler(message: Message):
     user_id = message.from_user.id
-    ensure_user_pref(user_id)
+    ensure_user(user_id)
 
     if not is_admin(user_id):
         await message.answer(tr(user_id, "Siz admin emassiz."))
@@ -1211,9 +1151,8 @@ async def admin_reset_handler(message: Message):
         reply_markup=reset_confirm_keyboard(user_id)
     )
 
-
 # =========================
-# ADMIN CALLBACKLAR
+# ADMIN CALLBACKS
 # =========================
 @dp.callback_query(F.data == "back_admin_panel")
 async def back_admin_panel_callback(callback: CallbackQuery):
@@ -1377,21 +1316,20 @@ async def admin_reset_callback(callback: CallbackQuery):
     await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
     await callback.answer(tr(user_id, "Reset qilindi!"))
 
-
 # =========================
-# TEXT HANDLER
+# TEXT
 # =========================
 @dp.message(F.text)
-async def text_results_handler(message: Message):
+async def text_handler(message: Message):
+    user_id = message.from_user.id
+    ensure_user(user_id)
+
     if message.text.lower() == "results":
-        user_id = message.from_user.id
-        ensure_user_pref(user_id)
         await message.answer(
             get_results_menu_text(user_id, False),
             parse_mode="HTML",
             reply_markup=results_menu_keyboard_user(user_id)
         )
-
 
 # =========================
 # MAIN

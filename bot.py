@@ -142,8 +142,10 @@ cursor = conn.cursor()
 # =========================
 def latin_to_cyrillic_text(text: str) -> str:
     pairs = [
-        ("O‘", "Ў"), ("o‘", "ў"), ("G‘", "Ғ"), ("g‘", "ғ"),
-        ("O'", "Ў"), ("o'", "ў"), ("G'", "Ғ"), ("g'", "ғ"),
+        ("O‘", "Ў"), ("o‘", "ў"),
+        ("G‘", "Ғ"), ("g‘", "ғ"),
+        ("O'", "Ў"), ("o'", "ў"),
+        ("G'", "Ғ"), ("g'", "ғ"),
         ("Sh", "Ш"), ("sh", "ш"),
         ("Ch", "Ч"), ("ch", "ч"),
         ("Ya", "Я"), ("ya", "я"),
@@ -407,6 +409,13 @@ def get_all_teachers_flat():
     return items
 
 
+def get_subscription_required_alert(user_id: int) -> str:
+    return tr(
+        user_id,
+        "Avval Telegram kanal, Instagram va Facebook sahifalarga obuna bo'ling."
+    )
+
+
 def get_general_results_text(user_id: int) -> str:
     total_votes = get_total_votes()
     lines = ["📊 <b>Umumiy natijalar</b>\n"]
@@ -517,7 +526,6 @@ def export_votes_to_csv() -> str:
                 get_teacher_name(subject_key, teacher_key),
                 voted_at or ""
             ])
-
     return EXPORT_FILE
 
 
@@ -558,7 +566,7 @@ async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup: In
         return
 
 # =========================
-# TEXTS
+# MATNLAR
 # =========================
 def get_welcome_text(user_id: int) -> str:
     return tr(
@@ -636,7 +644,7 @@ def get_admin_panel_text(user_id: int) -> str:
     )
 
 # =========================
-# KEYBOARDS
+# KLAVIATURALAR
 # =========================
 def script_switch_button(user_id: int) -> InlineKeyboardButton:
     if get_user_script(user_id) == "latin":
@@ -646,18 +654,24 @@ def script_switch_button(user_id: int) -> InlineKeyboardButton:
 
 def subscription_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(
-        text=tr(user_id, "📢 Telegram kanal"),
-        url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
-    ))
-    kb.row(InlineKeyboardButton(
-        text=tr(user_id, "📘 Facebook sahifa"),
-        url=FACEBOOK_URL
-    ))
-    kb.row(InlineKeyboardButton(
-        text=tr(user_id, "📸 Instagram sahifa"),
-        url=INSTAGRAM_URL
-    ))
+    kb.row(
+        InlineKeyboardButton(
+            text=tr(user_id, "📢 Telegram kanal"),
+            url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
+            text=tr(user_id, "📘 Facebook sahifa"),
+            url=FACEBOOK_URL
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
+            text=tr(user_id, "📸 Instagram sahifa"),
+            url=INSTAGRAM_URL
+        )
+    )
     kb.row(
         InlineKeyboardButton(text=tr(user_id, "✅ Tekshirish"), callback_data="check_subscription"),
         InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user")
@@ -690,10 +704,12 @@ def home_keyboard(user_id: int) -> InlineKeyboardMarkup:
 def subjects_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for subject_key, subject_data in SUBJECTS.items():
-        kb.row(InlineKeyboardButton(
-            text=tr(user_id, subject_data["name"]),
-            callback_data=f"subject:{subject_key}"
-        ))
+        kb.row(
+            InlineKeyboardButton(
+                text=tr(user_id, subject_data["name"]),
+                callback_data=f"subject:{subject_key}"
+            )
+        )
     kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"))
     return kb.as_markup()
 
@@ -705,10 +721,12 @@ def teachers_keyboard(user_id: int, subject_key: str) -> InlineKeyboardMarkup:
     for i in range(0, len(teachers), 2):
         row = []
         for teacher_key, teacher_name in teachers[i:i + 2]:
-            row.append(InlineKeyboardButton(
-                text=tr(user_id, teacher_name),
-                callback_data=f"vote:{subject_key}:{teacher_key}"
-            ))
+            row.append(
+                InlineKeyboardButton(
+                    text=tr(user_id, teacher_name),
+                    callback_data=f"vote:{subject_key}:{teacher_key}"
+                )
+            )
         kb.row(*row)
 
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Fanlarga qaytish"), callback_data="go_vote_panel"))
@@ -720,10 +738,12 @@ def results_menu_keyboard_user(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Umumiy"), callback_data="show_results_user:general"))
     for subject_key, subject_data in SUBJECTS.items():
-        kb.row(InlineKeyboardButton(
-            text=tr(user_id, subject_data["name"]),
-            callback_data=f"show_results_user:{subject_key}"
-        ))
+        kb.row(
+            InlineKeyboardButton(
+                text=tr(user_id, subject_data["name"]),
+                callback_data=f"show_results_user:{subject_key}"
+            )
+        )
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
     return kb.as_markup()
 
@@ -732,10 +752,12 @@ def results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Umumiy"), callback_data="show_results_admin:general"))
     for subject_key, subject_data in SUBJECTS.items():
-        kb.row(InlineKeyboardButton(
-            text=tr(user_id, subject_data["name"]),
-            callback_data=f"show_results_admin:{subject_key}"
-        ))
+        kb.row(
+            InlineKeyboardButton(
+                text=tr(user_id, subject_data["name"]),
+                callback_data=f"show_results_admin:{subject_key}"
+            )
+        )
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"))
     return kb.as_markup()
 
@@ -873,10 +895,7 @@ async def go_home_handler(callback: CallbackQuery):
 async def help_info_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
     kb = InlineKeyboardBuilder()
-    if has_access(user_id):
-        kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
-    else:
-        kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
     kb.row(script_switch_button(user_id))
     await safe_edit_message(callback, get_help_text(user_id), kb.as_markup())
     await callback.answer()
@@ -888,7 +907,7 @@ async def check_subscription_handler(callback: CallbackQuery):
 
     if not await check_user_subscription(user_id):
         reset_access(user_id)
-        await callback.answer(tr(user_id, "Avval Telegram kanalga obuna bo'ling."), show_alert=True)
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 
     grant_access(user_id)
@@ -906,13 +925,13 @@ async def go_vote_panel_handler(callback: CallbackQuery):
 
     if not has_access(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer()
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 
     if not await check_user_subscription(user_id):
         reset_access(user_id)
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer()
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 
     if has_voted(user_id):
@@ -935,13 +954,13 @@ async def subject_select_handler(callback: CallbackQuery):
 
     if not has_access(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer()
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 
     if not await check_user_subscription(user_id):
         reset_access(user_id)
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer()
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 
     if has_voted(user_id):
@@ -973,12 +992,12 @@ async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
 
     if not has_access(user_id):
-        await callback.answer(tr(user_id, "Avval obunani tekshiring."), show_alert=True)
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 
     if not await check_user_subscription(user_id):
         reset_access(user_id)
-        await callback.answer(tr(user_id, "Avval Telegram kanalga obuna bo'ling."), show_alert=True)
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 
     if not is_voting_open():
@@ -1317,7 +1336,7 @@ async def admin_reset_callback(callback: CallbackQuery):
     await callback.answer(tr(user_id, "Reset qilindi!"))
 
 # =========================
-# TEXT
+# TEXT HANDLER
 # =========================
 @dp.message(F.text)
 async def text_handler(message: Message):

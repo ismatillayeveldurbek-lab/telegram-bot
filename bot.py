@@ -38,90 +38,87 @@ DB_NAME = os.path.join(DATA_DIR, "votes.db")
 EXPORT_FILE = os.path.join(DATA_DIR, "votes_export.csv")
 
 SUBJECTS = {
-    "ingliz_tili": {
-        "name": "Ingliz tili",
+    "tillarni_oqitish_metodikasi": {
+        "name": "Tillarni o‘qitish metodikasi",
         "teachers": {
-            "ingliz_1": "Yo'ldoshev Bekmirza",
-            "ingliz_2": "Meyliyeva Lobar",
-            "ingliz_3": "Nazarov Asliddin",
-            "ingliz_4": "Norov O",
-            "ingliz_5": "Oqboyeva Z",
-            "ingliz_6": "Azimova N",
-            "ingliz_7": "Abduxoliqov A",
-            "ingliz_8": "D.Shaniyazova",
-            "ingliz_9": "B.Mamatov",
+            "tom_1": "Norov Otajon Shomurodovich",
+            "tom_2": "Abdixolikov Abdulazizxon Abduvohob o‘g‘li",
+            "tom_3": "Azimova Nigora Anvar qizi",
+            "tom_4": "Abatov Doston Ro‘zimurod o‘g‘li",
+            "tom_5": "Jalilova Komila Abdullayevna",
+            "tom_6": "Oqboyeva Zulfiya Bobonazarovna",
+            "tom_7": "Sevastyanova Nadejda Aleksandrovna",
+            "tom_8": "Xidirova Feruza To‘rayevna",
+            "tom_9": "Ergasheva Dilorom Muradilloyevna",
         },
     },
-    "ona_tili": {
-        "name": "Ona tili",
+    "pedagogika_psixologiya_va_talim_menejmenti": {
+        "name": "Pedagogika, psixologiya va ta’lim menejmenti",
         "teachers": {
-            "ona_1": "Irisova Sayyora",
-            "ona_2": "D.Shaniyazova",
-            "ona_3": "Meyliyeva Lobar",
-            "ona_4": "Nazarov Asliddin",
-            "ona_5": "Norov O",
-            "ona_6": "Abadov D",
-            "ona_7": "Xidirova F",
-            "ona_8": "Jalilova K",
-            "ona_9": "B.Mamatov",
+            "pptm_1": "Umarov Lutfillo Murodilloyevich",
+            "pptm_2": "Baratova Nasiba Turobovna",
+            "pptm_3": "Bekmurodova Dilnoza Pirimovna",
+            "pptm_4": "Meyliyev Jobar Nurmatovna",
+            "pptm_5": "Ochilov Og‘abek Narzullayevich",
+            "pptm_6": "Shoniyozova Dilafruz Sabirovna",
+            "pptm_7": "Yaratov Xamidjon Muxtorovich",
+            "pptm_8": "Nazarov Asliddin Faxriddin o‘g‘li",
+            "pptm_9": "Ergasheva Dilafruz Ergamqulovna",
+            "pptm_10": "Soatov Asadulloh Jabborovich",
         },
     },
-    "rus_tili": {
-        "name": "Rus tili",
+    "aniq_va_tabiiy_fanlar": {
+        "name": "Aniq va tabiiy fanlar",
         "teachers": {
-            "rus_1": "Batashov Inatilla",
-            "rus_2": "B.Mamatov",
-            "rus_3": "D.Shaniyazova",
-            "rus_4": "H.Yaratov",
-            "rus_5": "Meyliyeva Lobar",
-            "rus_6": "Norov O",
-            "rus_7": "Ergasheva D",
-            "rus_8": "Sevastyanova N",
+            "atf_1": "Jobborov Farhod Bo‘rinevich",
+            "atf_2": "Karimova Habiba Abduraxmonovna",
+            "atf_3": "Quldoshova Maftuna Jumanzar qizi",
+            "atf_4": "Mallaev Xamro Ro‘ziboyevich",
+            "atf_5": "Mamatov Bekzod Farxotovich",
+            "atf_6": "Pardaeva Muqaddas Zafar qizi",
+            "atf_7": "Parmanov Jahongir Rayhonovich",
+            "atf_8": "Rahmatullayev Erkin Shokirovich",
+            "atf_9": "Suyarov Zoir Shojmardonovich",
+            "atf_10": "Tursunova Maftuna Sulton qizi",
+            "atf_11": "Umarov Ibrohimxon Norxuja o‘g‘li",
+            "atf_12": "Chariev Rashid Ravshanovich",
+            "atf_13": "Elmurodov Sherdil Ergashyevich",
+            "atf_14": "Eshmonov Laziz Norxo‘rja o‘g‘li",
+            "atf_15": "Karaeva Dilfuzaxon Mamasharipovna",
+            "atf_16": "Salomova Madina Sodiq qizi",
         },
     },
-    "matematika": {
-        "name": "Matematika",
+    "amaliy_va_ijtimoiy_fanlar": {
+        "name": "Amaliy va ijtimoiy fanlar",
         "teachers": {
-            "mat_1": "Nurmatov Samandar",
-            "mat_2": "F.Jabborov",
-            "mat_3": "SH.Yusupova",
-            "mat_4": "Qo'ldosheva M",
-            "mat_5": "Umarov I",
-            "mat_6": "D.Bekmuradova",
-            "mat_7": "O.Ochilov",
-            "mat_8": "Nazarov Asliddin",
+            "aif_1": "Yo‘ldashev Bekmirza Elmurodovich",
+            "aif_2": "Jabboborov Laziz Hamza o‘g‘li",
+            "aif_3": "Nurmatov Samandar Fayratovich",
+            "aif_4": "Batoshov Inatillo Kungirovich",
+            "aif_5": "Rajabov Ruslan Bozorovich",
+            "aif_6": "Sanaev Azamat Alponovich",
+            "aif_7": "Shamsiev Jahongir Qulmurod o‘g‘li",
+            "aif_8": "Xudoyberdiev Axrorboy Nabi o‘g‘li",
+            "aif_9": "Xasanova Gulnora Qorshanbiyevna",
+            "aif_10": "Eshnazarova Maziya Allanazarovna",
         },
     },
-    "informatika": {
-        "name": "Informatika",
+    "maktabgacha_boshlangich_va_maxsus_talim": {
+        "name": "Maktabgacha, boshlang‘ich va maxsus ta’lim",
         "teachers": {
-            "info_1": "Nurmatov Samandar",
-            "info_2": "F.Jabborov",
-            "info_3": "B.Mamatov",
-            "info_4": "SH.Eshmurodov",
-            "info_5": "Z.Suyarov",
-            "info_6": "H.Mallayev",
-            "info_7": "D.Bekmuradova",
-            "info_8": "O.Ochilov",
-            "info_9": "Meyliyeva Lobar",
-        },
-    },
-    "boshlangich_fanlar": {
-        "name": "Boshlang'ich fanlar",
-        "teachers": {
-            "bosh_1": "Shamsiyev J",
-            "bosh_2": "Z.Suyarov",
-            "bosh_3": "Umarov Lutfillo",
-            "bosh_4": "N.Baratova",
-            "bosh_5": "O.Ochilov",
-            "bosh_6": "Irisova Sayyora",
-            "bosh_7": "Zaripova Muslima",
-            "bosh_8": "Azizova Dilnoz",
-            "bosh_9": "Rajabova Xurshida",
-            "bosh_10": "G'oyemov U",
-            "bosh_11": "Qosimova G",
-            "bosh_12": "Qarshiyeva G",
-            "bosh_13": "Qurbonova H",
+            "mbmt_1": "Irisova Sayyora Rajabovna",
+            "mbmt_2": "Azizova Dilnoz Yo‘ldoshevna",
+            "mbmt_3": "G‘oyimov Umar Eshmurodovich",
+            "mbmt_4": "Ziyoyeva Madina Mansur qizi",
+            "mbmt_5": "Karimova Umida Sharopovna",
+            "mbmt_6": "Qorliyeva Guzal Alimardonovna",
+            "mbmt_7": "Qurbanova Xusnora Xudoyberdi qizi",
+            "mbmt_8": "Rajabova Xurshida Hakimovna",
+            "mbmt_9": "Razzaqova Dilnoza Akramovna",
+            "mbmt_10": "Sadinova Marjona Akmal qizi",
+            "mbmt_11": "Shaxmurodova Dilxaxon Almardanovna",
+            "mbmt_12": "Ergasheva Xusniya Mirzoxid qizi",
+            "mbmt_13": "Zaripova Muslima Qurbonovna",
         },
     },
 }
@@ -591,7 +588,7 @@ def get_help_text(user_id: int) -> str:
         "• Facebook sahifaga obuna bo'ling\n"
         "• Instagram sahifaga obuna bo'ling\n"
         "• So'ng Tekshirish tugmasini bosing\n"
-        "• Ovoz berish uchun fan tanlanadi\n"
+        "• Ovoz berish uchun kafedra tanlanadi\n"
         "• Keyin o'qituvchi tanlanadi\n"
         "• Har bir foydalanuvchi faqat 1 marta ovoz bera oladi\n"
         "• Natijalarni istalgan payt ko'rishingiz mumkin"
@@ -616,7 +613,7 @@ def get_closed_text(user_id: int) -> str:
 
 
 def get_subject_select_text(user_id: int) -> str:
-    return tr(user_id, "🗂 <b>Fanni tanlang</b>\n\nQuyidagi fanlardan birini tanlang:")
+    return tr(user_id, "🗂 <b>Kafedrani tanlang</b>\n\nQuyidagi bo'limlardan birini tanlang:")
 
 
 def get_teacher_select_text(user_id: int, subject_key: str) -> str:
@@ -630,7 +627,7 @@ def get_results_menu_text(user_id: int, is_admin_view: bool = False) -> str:
         f"📊 <b>{title}</b>\n\n"
         f"Kerakli bo'limni tanlang:\n"
         f"• Umumiy natijalar\n"
-        f"• Fanlar bo'yicha natijalar"
+        f"• Kafedralar bo'yicha natijalar"
     )
 
 
@@ -729,7 +726,7 @@ def teachers_keyboard(user_id: int, subject_key: str) -> InlineKeyboardMarkup:
             )
         kb.row(*row)
 
-    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Fanlarga qaytish"), callback_data="go_vote_panel"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Kafedralarga qaytish"), callback_data="go_vote_panel"))
     kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"))
     return kb.as_markup()
 
@@ -976,7 +973,7 @@ async def subject_select_handler(callback: CallbackQuery):
     subject_key = callback.data.split(":")[1]
 
     if subject_key not in SUBJECTS:
-        await callback.answer(tr(user_id, "Noto'g'ri fan tanlandi."), show_alert=True)
+        await callback.answer(tr(user_id, "Noto'g'ri bo'lim tanlandi."), show_alert=True)
         return
 
     await safe_edit_message(
@@ -1016,7 +1013,7 @@ async def vote_handler(callback: CallbackQuery):
     _, subject_key, teacher_key = parts
 
     if subject_key not in SUBJECTS:
-        await callback.answer(tr(user_id, "Noto'g'ri fan."), show_alert=True)
+        await callback.answer(tr(user_id, "Noto'g'ri bo'lim."), show_alert=True)
         return
 
     if teacher_key not in SUBJECTS[subject_key]["teachers"]:
@@ -1033,7 +1030,7 @@ async def vote_handler(callback: CallbackQuery):
 
     text = (
         f"✅ <b>Ovoz muvaffaqiyatli qabul qilindi</b>\n\n"
-        f"<b>Fan:</b> {SUBJECTS[subject_key]['name']}\n"
+        f"<b>Bo'lim:</b> {SUBJECTS[subject_key]['name']}\n"
         f"<b>Tanlovingiz:</b> {SUBJECTS[subject_key]['teachers'][teacher_key]}\n\n"
         f"Rahmat, sizning ovozingiz saqlandi."
     )

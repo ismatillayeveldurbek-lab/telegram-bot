@@ -137,6 +137,7 @@ dp = Dispatcher()
 conn = sqlite3.connect(DB_NAME, check_same_thread=False)
 cursor = conn.cursor()
 
+
 # =========================
 # TRANSLIT
 # =========================
@@ -223,7 +224,7 @@ def cyrillic_to_latin_text(text: str) -> str:
         "Х": "X", "х": "x",
         "Й": "Y", "й": "y",
         "З": "Z", "з": "z",
-        "ъ": "'",
+        "Ъ": "'", "ъ": "'",
         "Ь": "", "ь": "",
     }
 
@@ -242,7 +243,9 @@ def translit_html_safe(text: str, to_script: str) -> str:
                 result.append(latin_to_cyrillic_text(part))
             else:
                 result.append(cyrillic_to_latin_text(part))
+
     return "".join(result)
+
 
 # =========================
 # BAZA
@@ -273,7 +276,6 @@ def init_db():
         access_granted INTEGER DEFAULT 0
     )
     """)
-
     conn.commit()
 
     cursor.execute("PRAGMA table_info(votes)")
@@ -516,7 +518,7 @@ def get_users_text(user_id: int) -> str:
     lines = [f"👥 <b>Kim kimga ovoz berdi</b>\n\nJami: {len(rows)} ta foydalanuvchi\n"]
 
     for i, (uid, full_name, username, subject_key, teacher_key, voted_at) in enumerate(rows, start=1):
-        line = f"{i}. <b>{full_name or 'Noma'lum'}</b>"
+        line = f'{i}. <b>{full_name or "Noma\'lum"}</b>'
         if username:
             line += f" (@{username})"
         line += f"\n   → Fan: {get_subject_name(subject_key)}"
@@ -601,11 +603,13 @@ async def safe_edit_message(
     except Exception:
         return
 
+
 # =========================
 # MATNLAR
 # =========================
 def get_welcome_text(user_id: int) -> str:
-    return tr(user_id,
+    return tr(
+        user_id,
         "🚀 <b>Botdan foydalanish uchun quyidagilarni bajaring:</b>\n\n"
         "1️⃣ 📢 Telegram kanalga obuna bo'ling\n"
         "2️⃣ 📘 Facebook sahifaga obuna bo'ling\n"
@@ -617,7 +621,8 @@ def get_welcome_text(user_id: int) -> str:
 def get_home_text(user_id: int) -> str:
     if has_access(user_id):
         return tr(user_id, "🏠 <b>Bosh menyu</b>\n\nKerakli bo'limni tanlang:")
-    return tr(user_id,
+    return tr(
+        user_id,
         "🔐 <b>Avval obunani yakunlang</b>\n\n"
         "Telegram, Facebook va Instagram sahifalarni ochib chiqing.\n"
         "So'ng <b>Obunani tekshirish</b> tugmasini bosing.\n\n"
@@ -626,7 +631,8 @@ def get_home_text(user_id: int) -> str:
 
 
 def get_help_text(user_id: int) -> str:
-    return tr(user_id,
+    return tr(
+        user_id,
         "ℹ️ <b>Yordam</b>\n\n"
         "• Avval Telegram kanalga obuna bo'ling\n"
         "• Facebook sahifaga obuna bo'ling\n"
@@ -640,7 +646,8 @@ def get_help_text(user_id: int) -> str:
 
 
 def get_already_voted_text(user_id: int) -> str:
-    return tr(user_id,
+    return tr(
+        user_id,
         "✅ <b>Siz allaqachon ovoz berib bo'lgansiz</b>\n\n"
         "Qayta ovoz berish mumkin emas.\n"
         "📊 Natijalarni ko'rishingiz mumkin."
@@ -648,7 +655,8 @@ def get_already_voted_text(user_id: int) -> str:
 
 
 def get_closed_text(user_id: int) -> str:
-    return tr(user_id,
+    return tr(
+        user_id,
         "🔒 <b>Ovoz berish hozircha yopilgan</b>\n\n"
         "Admin tomonidan ovoz berish vaqtincha to'xtatilgan."
     )
@@ -665,7 +673,8 @@ def get_teacher_select_text(user_id: int, subject_key: str) -> str:
 
 def get_results_menu_text(user_id: int, is_admin_view: bool = False) -> str:
     title = "Admin natijalar bo'limi" if is_admin_view else "Natijalar bo'limi"
-    return tr(user_id,
+    return tr(
+        user_id,
         f"📊 <b>{title}</b>\n\n"
         f"Kerakli bo'limni tanlang:\n"
         f"• Umumiy natijalar\n"
@@ -675,11 +684,13 @@ def get_results_menu_text(user_id: int, is_admin_view: bool = False) -> str:
 
 def get_admin_panel_text(user_id: int) -> str:
     status_text = "🟢 Ochiq" if is_voting_open() else "🔴 Yopiq"
-    return tr(user_id,
+    return tr(
+        user_id,
         f"🎛 <b>Admin panel</b>\n\n"
         f"Voting holati: {status_text}\n"
         f"Jami ovozlar: {get_total_votes()}"
     )
+
 
 # =========================
 # KLAVIATURALAR
@@ -867,6 +878,7 @@ def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     )
     return kb.as_markup()
 
+
 # =========================
 # START
 # =========================
@@ -890,6 +902,7 @@ async def start_handler(message: Message):
         reply_markup=home_keyboard(user_id)
     )
 
+
 # =========================
 # SCRIPT TOGGLE
 # =========================
@@ -905,6 +918,7 @@ async def set_script_handler(callback: CallbackQuery):
     set_user_script(user_id, script)
     await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
     await callback.answer("Til yozuvi o'zgartirildi")
+
 
 # =========================
 # USER CALLBACKLAR
@@ -1066,6 +1080,7 @@ async def vote_handler(callback: CallbackQuery):
     await safe_edit_message(callback, tr(user_id, text), after_vote_keyboard(user_id))
     await callback.answer(tr(user_id, "Ovozingiz qabul qilindi!"))
 
+
 # =========================
 # RESULTS - USER
 # =========================
@@ -1107,6 +1122,7 @@ async def results_handler(message: Message):
         parse_mode="HTML",
         reply_markup=results_menu_keyboard_user(user_id)
     )
+
 
 # =========================
 # ADMIN BUYRUQLAR
@@ -1194,6 +1210,7 @@ async def admin_reset_handler(message: Message):
         parse_mode="HTML",
         reply_markup=reset_confirm_keyboard(user_id)
     )
+
 
 # =========================
 # ADMIN CALLBACKLAR
@@ -1360,18 +1377,21 @@ async def admin_reset_callback(callback: CallbackQuery):
     await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
     await callback.answer(tr(user_id, "Reset qilindi!"))
 
+
 # =========================
 # TEXT HANDLER
 # =========================
-@dp.message(F.text.lower() == "results")
+@dp.message(F.text)
 async def text_results_handler(message: Message):
-    user_id = message.from_user.id
-    ensure_user_pref(user_id)
-    await message.answer(
-        get_results_menu_text(user_id, False),
-        parse_mode="HTML",
-        reply_markup=results_menu_keyboard_user(user_id)
-    )
+    if message.text.lower() == "results":
+        user_id = message.from_user.id
+        ensure_user_pref(user_id)
+        await message.answer(
+            get_results_menu_text(user_id, False),
+            parse_mode="HTML",
+            reply_markup=results_menu_keyboard_user(user_id)
+        )
+
 
 # =========================
 # MAIN

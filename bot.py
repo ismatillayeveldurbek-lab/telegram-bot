@@ -23,7 +23,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # SOZLAMALAR
 # =========================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE")
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@qashqadaryoPMM")
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@QASHQADARYOPMMrasmiy")
 
 ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "5298063089,7361393654")
 ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip().isdigit()]

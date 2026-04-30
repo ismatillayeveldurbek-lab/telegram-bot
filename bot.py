@@ -584,9 +584,9 @@ def get_help_text(user_id: int) -> str:
     return tr(
         user_id,
         "ℹ️ <b>Yordam</b>\n\n"
+        "• Avval Telegram kanalga obuna bo'ling\n"
         "• Facebook sahifaga obuna bo'ling\n"
         "• Instagram sahifaga obuna bo'ling\n"
-        "• Avval Telegram kanalga obuna bo'ling\n"
         "• So'ng Tekshirish tugmasini bosing\n"
         "• Ovoz berish uchun kafedra tanlanadi\n"
         "• Keyin o'qituvchi tanlanadi\n"

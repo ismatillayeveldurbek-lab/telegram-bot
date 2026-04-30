@@ -409,7 +409,7 @@ def get_all_teachers_flat():
 def get_subscription_required_alert(user_id: int) -> str:
     return tr(
         user_id,
-        "Avval Facebook, Instagram va Telegram kanal sahifalarga obuna bo'ling."
+        "Avval Telegram kanal, Instagram va Facebook sahifalarga obuna bo'ling."
     )
 
 

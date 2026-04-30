@@ -569,9 +569,9 @@ def get_welcome_text(user_id: int) -> str:
     return tr(
         user_id,
         "🚀 <b>Botdan foydalanish uchun quyidagilarni bajaring:</b>\n\n"
+        "1️⃣ 📢 Telegram kanalga obuna bo'ling\n"
         "2️⃣ 📘 Facebook sahifaga obuna bo'ling\n"
         "3️⃣ 📸 Instagram sahifaga obuna bo'ling\n\n"
-        "1️⃣ 📢 Telegram kanalga obuna bo'ling\n"
         "👇 Barchasini bajargach, <b>Tekshirish</b> tugmasini bosing"
     )
 

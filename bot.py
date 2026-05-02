@@ -1,6 +1,4 @@
-from pathlib import Path
-
-code = r'''import os
+import os
 import csv
 import re
 import asyncio
@@ -1750,9 +1748,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-'''
-
-path = Path("/mnt/data/updated_teacher_rating_bot.py")
-path.write_text(code, encoding="utf-8")
-print(f"Created: {path}")
-print(f"Size: {path.stat().st_size} bytes")

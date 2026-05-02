@@ -126,7 +126,10 @@ SUBJECTS = {
     },
 }
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN topilmadi")
@@ -138,9 +141,13 @@ conn = sqlite3.connect(DB_NAME, check_same_thread=False)
 cursor = conn.cursor()
 
 # =========================
-# TRANSLIT
+# TRANSLIT (TUZATILGAN - 'M/m' MUAMMOSI HAL QILINDI)
 # =========================
 def latin_to_cyrillic_text(text: str) -> str:
+    if not text:
+        return text
+    
+    # Avval maxsus harflar
     pairs = [
         ("O‘", "Ў"), ("o‘", "ў"),
         ("G‘", "Ғ"), ("g‘", "ғ"),
@@ -156,6 +163,7 @@ def latin_to_cyrillic_text(text: str) -> str:
     for old, new in pairs:
         text = text.replace(old, new)
 
+    # To'liq jadval (M/m albatta bor!)
     table = str.maketrans({
         "A": "А", "a": "а",
         "B": "Б", "b": "б",
@@ -168,7 +176,7 @@ def latin_to_cyrillic_text(text: str) -> str:
         "J": "Ж", "j": "ж",
         "K": "К", "k": "к",
         "L": "Л", "l": "л",
-        "M": "М", "m": "м",
+        "M": "М", "m": "м",   # ✅ MUAMMO HAL QILINDI
         "N": "Н", "n": "н",
         "O": "О", "o": "о",
         "P": "П", "p": "п",
@@ -187,6 +195,9 @@ def latin_to_cyrillic_text(text: str) -> str:
 
 
 def cyrillic_to_latin_text(text: str) -> str:
+    if not text:
+        return text
+    
     pairs = [
         ("Ў", "O'"), ("ў", "o'"),
         ("Ғ", "G'"), ("ғ", "g'"),
@@ -212,7 +223,7 @@ def cyrillic_to_latin_text(text: str) -> str:
         "Ж": "J", "ж": "j",
         "К": "K", "k": "k",
         "Л": "L", "l": "l",
-        "М": "M", "m": "м",
+        "М": "M", "м": "m",   # ✅ MUAMMO HAL QILINDI
         "Н": "N", "n": "n",
         "О": "O", "о": "o",
         "П": "P", "p": "p",
@@ -232,6 +243,8 @@ def cyrillic_to_latin_text(text: str) -> str:
 
 
 def translit_html_safe(text: str, script: str) -> str:
+    if not text:
+        return text
     parts = re.split(r"(<[^>]+>)", text)
     result = []
     for part in parts:
@@ -553,7 +566,9 @@ async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup: In
     except TelegramBadRequest as e:
         error_text = str(e).lower()
         if "message is not modified" in error_text:
+            await callback.answer()
             return
+        # Agar edit bo'lmasa, yangi xabar yuboramiz
         try:
             await callback.message.answer(
                 text=text,
@@ -561,9 +576,14 @@ async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup: In
                 reply_markup=reply_markup
             )
         except Exception:
-            return
-    except Exception:
-        return
+            pass
+    except Exception as e:
+        logging.error(f"safe_edit_message xatosi: {e}")
+    finally:
+        try:
+            await callback.answer()
+        except:
+            pass
 
 # =========================
 # MATNLAR
@@ -863,6 +883,7 @@ def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
 async def start_handler(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id)
+    logging.info(f"START: user_id={user_id}")
 
     if not await check_user_subscription(user_id):
         reset_access(user_id)
@@ -887,11 +908,13 @@ async def start_handler(message: Message):
         )
 
 # =========================
-# SCRIPT
+# SCRIPT (TUGMA ISHLASHI YAXSHILANDI)
 # =========================
 @dp.callback_query(F.data.startswith("set_script:"))
 async def set_script_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    logging.info(f"SCRIPT SWITCH: user_id={user_id}, data={callback.data}")
+    
     parts = callback.data.split(":", 2)
 
     if len(parts) < 2:
@@ -906,109 +929,49 @@ async def set_script_handler(callback: CallbackQuery):
         return
 
     set_user_script(user_id, script)
+    logging.info(f"Script o'zgartirildi: {script} for user {user_id}")
 
-    if page == "subscription":
-        await safe_edit_message(
-            callback,
-            get_welcome_text(user_id),
-            subscription_keyboard(user_id)
-        )
-
-    elif page == "admin_panel":
-        await safe_edit_message(
-            callback,
-            get_admin_panel_text(user_id),
-            admin_panel_keyboard(user_id)
-        )
-
-    elif page == "admin_results_menu":
-        await safe_edit_message(
-            callback,
-            get_results_menu_text(user_id, True),
-            results_menu_keyboard_admin(user_id)
-        )
-
-    elif page.startswith("admin_result_"):
-        scope = page.replace("admin_result_", "", 1)
-        text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-        await safe_edit_message(
-            callback,
-            text,
-            results_keyboard_admin(user_id, scope)
-        )
-
-    elif page == "admin_users":
-        await safe_edit_message(
-            callback,
-            get_users_text(user_id),
-            users_keyboard_admin(user_id)
-        )
-
-    elif page == "admin_reset_confirm":
-        await safe_edit_message(
-            callback,
-            tr(user_id, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"),
-            reset_confirm_keyboard(user_id)
-        )
-
-    elif page == "user_results_menu":
-        await safe_edit_message(
-            callback,
-            get_results_menu_text(user_id, False),
-            results_menu_keyboard_user(user_id)
-        )
-
-    elif page.startswith("user_result_"):
-        scope = page.replace("user_result_", "", 1)
-        text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-        await safe_edit_message(
-            callback,
-            text,
-            results_keyboard_user(user_id, scope)
-        )
-
-    elif page == "subjects":
-        await safe_edit_message(
-            callback,
-            get_subject_select_text(user_id),
-            subjects_keyboard(user_id)
-        )
-
-    elif page.startswith("teachers_"):
-        subject_key = page.replace("teachers_", "", 1)
-        if subject_key in SUBJECTS:
-            await safe_edit_message(
-                callback,
-                get_teacher_select_text(user_id, subject_key),
-                teachers_keyboard(user_id, subject_key)
-            )
+    # Barcha sahifalarni qayta yuklash
+    try:
+        if page == "subscription":
+            await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+        elif page == "admin_panel":
+            await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
+        elif page == "admin_results_menu":
+            await safe_edit_message(callback, get_results_menu_text(user_id, True), results_menu_keyboard_admin(user_id))
+        elif page.startswith("admin_result_"):
+            scope = page.replace("admin_result_", "", 1)
+            text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
+            await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
+        elif page == "admin_users":
+            await safe_edit_message(callback, get_users_text(user_id), users_keyboard_admin(user_id))
+        elif page == "admin_reset_confirm":
+            await safe_edit_message(callback, tr(user_id, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"), reset_confirm_keyboard(user_id))
+        elif page == "user_results_menu":
+            await safe_edit_message(callback, get_results_menu_text(user_id, False), results_menu_keyboard_user(user_id))
+        elif page.startswith("user_result_"):
+            scope = page.replace("user_result_", "", 1)
+            text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
+            await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
+        elif page == "subjects":
+            await safe_edit_message(callback, get_subject_select_text(user_id), subjects_keyboard(user_id))
+        elif page.startswith("teachers_"):
+            subject_key = page.replace("teachers_", "", 1)
+            if subject_key in SUBJECTS:
+                await safe_edit_message(callback, get_teacher_select_text(user_id, subject_key), teachers_keyboard(user_id, subject_key))
+            else:
+                await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+        elif page == "after_vote":
+            await safe_edit_message(callback, get_already_voted_text(user_id), home_keyboard(user_id))
         else:
-            await safe_edit_message(
-                callback,
-                get_home_text(user_id),
-                home_keyboard(user_id)
-            )
-
-    elif page == "after_vote":
-        await safe_edit_message(
-            callback,
-            get_already_voted_text(user_id),
-            home_keyboard(user_id)
-        )
-
-    else:
-        if has_access(user_id):
-            await safe_edit_message(
-                callback,
-                get_home_text(user_id),
-                home_keyboard(user_id)
-            )
-        else:
-            await safe_edit_message(
-                callback,
-                get_welcome_text(user_id),
-                subscription_keyboard(user_id)
-            )
+            if has_access(user_id):
+                await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+            else:
+                await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+    except Exception as e:
+        logging.error(f"Script switch xatosi: {e}")
+        await callback.answer("Xatolik yuz berdi", show_alert=True)
+        return
 
     await callback.answer(tr(user_id, "Til yozuvi o'zgartirildi"))
 
@@ -1018,26 +981,30 @@ async def set_script_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "go_home")
 async def go_home_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
+    logging.info(f"GO_HOME: user_id={user_id}")
+    
     if has_access(user_id):
         await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
     else:
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-    await callback.answer()
 
 
 @dp.callback_query(F.data == "help_info")
 async def help_info_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
     kb.row(script_switch_button(user_id, "help"))
     await safe_edit_message(callback, get_help_text(user_id), kb.as_markup())
-    await callback.answer()
 
 
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
+    logging.info(f"CHECK_SUB: user_id={user_id}")
 
     if not await check_user_subscription(user_id):
         reset_access(user_id)
@@ -1050,12 +1017,13 @@ async def check_subscription_handler(callback: CallbackQuery):
         tr(user_id, "✅ <b>Tekshiruv muvaffaqiyatli o'tdi</b>\n\nEndi bosh menyudan kerakli bo'limni tanlang:"),
         home_keyboard(user_id)
     )
-    await callback.answer(tr(user_id, "Tasdiqlandi"))
 
 
 @dp.callback_query(F.data == "go_vote_panel")
 async def go_vote_panel_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
+    logging.info(f"GO_VOTE: user_id={user_id}")
 
     if not has_access(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
@@ -1070,21 +1038,20 @@ async def go_vote_panel_handler(callback: CallbackQuery):
 
     if has_voted(user_id):
         await safe_edit_message(callback, get_already_voted_text(user_id), home_keyboard(user_id))
-        await callback.answer()
         return
 
     if not is_voting_open():
         await safe_edit_message(callback, get_closed_text(user_id), home_keyboard(user_id))
-        await callback.answer()
         return
 
     await safe_edit_message(callback, get_subject_select_text(user_id), subjects_keyboard(user_id))
-    await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("subject:"))
 async def subject_select_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
+    logging.info(f"SUBJECT: user_id={user_id}, data={callback.data}")
 
     if not has_access(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
@@ -1099,12 +1066,10 @@ async def subject_select_handler(callback: CallbackQuery):
 
     if has_voted(user_id):
         await safe_edit_message(callback, get_already_voted_text(user_id), home_keyboard(user_id))
-        await callback.answer()
         return
 
     if not is_voting_open():
         await safe_edit_message(callback, get_closed_text(user_id), home_keyboard(user_id))
-        await callback.answer()
         return
 
     subject_key = callback.data.split(":")[1]
@@ -1118,12 +1083,13 @@ async def subject_select_handler(callback: CallbackQuery):
         get_teacher_select_text(user_id, subject_key),
         teachers_keyboard(user_id, subject_key)
     )
-    await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("vote:"))
 async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
+    logging.info(f"VOTE: user_id={user_id}, data={callback.data}")
 
     if not has_access(user_id):
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
@@ -1173,7 +1139,7 @@ async def vote_handler(callback: CallbackQuery):
     )
 
     await safe_edit_message(callback, tr(user_id, text), after_vote_keyboard(user_id))
-    await callback.answer(tr(user_id, "Ovozingiz qabul qilindi!"))
+
 
 # =========================
 # USER RESULTS
@@ -1181,26 +1147,27 @@ async def vote_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "show_results_menu_user")
 async def show_results_menu_user(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
     await safe_edit_message(
         callback,
         get_results_menu_text(user_id, False),
         results_menu_keyboard_user(user_id)
     )
-    await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("show_results_user:"))
 async def show_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
     scope = callback.data.split(":", 1)[1]
     text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
     await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
-    await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("refresh_results_user:"))
 async def refresh_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
     scope = callback.data.split(":", 1)[1]
     text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
     await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
@@ -1316,7 +1283,6 @@ async def back_admin_panel_callback(callback: CallbackQuery):
         return
 
     await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
-    await callback.answer()
 
 
 @dp.callback_query(F.data == "admin_results")
@@ -1332,7 +1298,6 @@ async def admin_results_callback(callback: CallbackQuery):
         get_results_menu_text(user_id, True),
         results_menu_keyboard_admin(user_id)
     )
-    await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("show_results_admin:"))
@@ -1346,7 +1311,6 @@ async def show_results_admin(callback: CallbackQuery):
     scope = callback.data.split(":", 1)[1]
     text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
     await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
-    await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("refresh_results_admin:"))
@@ -1372,7 +1336,6 @@ async def admin_users_callback(callback: CallbackQuery):
         return
 
     await safe_edit_message(callback, get_users_text(user_id), users_keyboard_admin(user_id))
-    await callback.answer()
 
 
 @dp.callback_query(F.data == "refresh_admin_users")
@@ -1442,7 +1405,6 @@ async def admin_reset_confirm_callback(callback: CallbackQuery):
         tr(user_id, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"),
         reset_confirm_keyboard(user_id)
     )
-    await callback.answer()
 
 
 @dp.callback_query(F.data == "cancel_reset")
@@ -1489,7 +1451,8 @@ async def text_handler(message: Message):
 # =========================
 async def main():
     init_db()
-    logging.info(f"Bot ishga tushdi. Baza: {DB_NAME}")
+    logging.info(f"✅ Bot ishga tushdi. Baza: {DB_NAME}")
+    logging.info(f"✅ ADMIN_IDS: {ADMIN_IDS}")
     await dp.start_polling(bot)
 
 

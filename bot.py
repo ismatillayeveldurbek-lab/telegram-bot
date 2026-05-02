@@ -20,7 +20,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # SOZLAMALAR
 # =========================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE")
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@QASHQADARYOPMMrasmiy")
+
+# ✅ YANGI KANAL
+CHANNEL_USERNAME = "@QASHQADARYOPMMrasmiy"
 
 ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "5298063089,7361393654")
 ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip().isdigit()]
@@ -132,17 +134,77 @@ if not BOT_TOKEN:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# =========================
-# DATABASE
-# =========================
-def get_db_connection():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
-
-conn = get_db_connection()
+conn = sqlite3.connect(DB_NAME, check_same_thread=False)
 cursor = conn.cursor()
 
+# =========================
+# TRANSLIT
+# =========================
+def latin_to_cyrillic_text(text: str) -> str:
+    pairs = [
+        ("O‘", "Ў"), ("o‘", "ў"), ("G‘", "Ғ"), ("g‘", "ғ"),
+        ("O'", "Ў"), ("o'", "ў"), ("G'", "Ғ"), ("g'", "ғ"),
+        ("Sh", "Ш"), ("sh", "ш"), ("Ch", "Ч"), ("ch", "ч"),
+        ("Ya", "Я"), ("ya", "я"), ("Yo", "Ё"), ("yo", "ё"),
+        ("Yu", "Ю"), ("yu", "ю"), ("Ts", "Ц"), ("ts", "ц"),
+    ]
+    for old, new in pairs:
+        text = text.replace(old, new)
+
+    table = str.maketrans({
+        "A": "А", "a": "а", "B": "Б", "b": "б", "D": "Д", "d": "д",
+        "E": "Е", "e": "е", "F": "Ф", "f": "ф", "G": "Г", "g": "г",
+        "H": "Ҳ", "h": "ҳ", "I": "И", "i": "и", "J": "Ж", "j": "ж",
+        "K": "К", "k": "к", "L": "Л", "l": "л", "M": "М", "m": "м",
+        "N": "Н", "n": "н", "O": "О", "o": "о", "P": "П", "p": "п",
+        "Q": "Қ", "q": "қ", "R": "Р", "r": "р", "S": "С", "s": "с",
+        "T": "Т", "t": "т", "U": "У", "u": "у", "V": "В", "v": "в",
+        "X": "Х", "x": "х", "Y": "Й", "y": "й", "Z": "З", "z": "з",
+        "`": "ъ", "’": "ъ", "'": "ъ",
+    })
+    return text.translate(table)
+
+
+def cyrillic_to_latin_text(text: str) -> str:
+    pairs = [
+        ("Ў", "O'"), ("ў", "o'"), ("Ғ", "G'"), ("ғ", "g'"),
+        ("Ш", "Sh"), ("ш", "sh"), ("Ч", "Ch"), ("ч", "ch"),
+        ("Я", "Ya"), ("я", "ya"), ("Ё", "Yo"), ("ё", "yo"),
+        ("Ю", "Yu"), ("ю", "yu"), ("Ц", "Ts"), ("ц", "ts"),
+    ]
+    for old, new in pairs:
+        text = text.replace(old, new)
+
+    table = str.maketrans({
+        "А": "A", "а": "a", "Б": "B", "б": "b", "Д": "D", "д": "d",
+        "Е": "E", "е": "e", "Ф": "F", "ф": "f", "Г": "G", "г": "g",
+        "Ҳ": "H", "ҳ": "h", "И": "I", "и": "i", "Ж": "J", "ж": "j",
+        "К": "K", "к": "k", "Л": "L", "л": "l", "М": "M", "м": "м",
+        "Н": "N", "н": "n", "О": "O", "о": "o", "П": "P", "p": "p",
+        "Қ": "Q", "қ": "q", "Р": "R", "р": "r", "С": "S", "s": "s",
+        "Т": "T", "t": "t", "У": "U", "у": "u", "В": "V", "v": "v",
+        "Х": "X", "х": "x", "Й": "Y", "й": "y", "З": "Z", "з": "z",
+        "Ъ": "'", "ъ": "'", "Ь": "", "ь": "",
+    })
+    return text.translate(table)
+
+
+def translit_html_safe(text: str, script: str) -> str:
+    parts = re.split(r"(<[^>]+>)", text)
+    result = []
+    for part in parts:
+        if part.startswith("<") and part.endswith(">"):
+            result.append(part)
+        else:
+            if script == "cyrillic":
+                result.append(latin_to_cyrillic_text(part))
+            else:
+                result.append(cyrillic_to_latin_text(part))
+    return "".join(result)
+
+# =========================
+# DB FUNCTIONS
+# =========================
 def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS votes (
@@ -258,10 +320,7 @@ def save_vote(user_id: int, full_name: str, username: str, subject_key: str, tea
     cursor.execute("""
         INSERT INTO votes (user_id, full_name, username, subject_key, teacher_key, voted_at)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        user_id, full_name, username, subject_key, teacher_key,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
+    """, (user_id, full_name, username, subject_key, teacher_key, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
 
 
@@ -303,119 +362,76 @@ def get_subscription_required_alert(user_id: int) -> str:
 
 
 # =========================
-# TRANSLIT
-# =========================
-def latin_to_cyrillic_text(text: str) -> str:
-    pairs = [("O‘","Ў"), ("o‘","ў"), ("G‘","Ғ"), ("g‘","ғ"),
-             ("O'","Ў"), ("o'","ў"), ("G'","Ғ"), ("g'","ғ"),
-             ("Sh","Ш"), ("sh","ш"), ("Ch","Ч"), ("ch","ч"),
-             ("Ya","Я"), ("ya","я"), ("Yo","Ё"), ("yo","ё"),
-             ("Yu","Ю"), ("yu","ю"), ("Ts","Ц"), ("ts","ц")]
-    for old, new in pairs:
-        text = text.replace(old, new)
-    table = str.maketrans({"A":"А","a":"а","B":"Б","b":"б","D":"Д","d":"д","E":"Е","e":"е",
-                           "F":"Ф","f":"ф","G":"Г","g":"г","H":"Ҳ","h":"ҳ","I":"И","i":"и",
-                           "J":"Ж","j":"ж","K":"К","k":"к","L":"Л","l":"л","M":"М","m":"м",
-                           "N":"Н","n":"н","O":"О","o":"о","P":"П","p":"п","Q":"Қ","q":"қ",
-                           "R":"Р","r":"р","S":"С","s":"с","T":"Т","t":"т","U":"У","u":"у",
-                           "V":"В","v":"в","X":"Х","x":"х","Y":"Й","y":"й","Z":"З","z":"з",
-                           "`":"ъ","’":"ъ","'":"ъ"})
-    return text.translate(table)
-
-
-def cyrillic_to_latin_text(text: str) -> str:
-    pairs = [("Ў","O'"), ("ў","o'"), ("Ғ","G'"), ("ғ","g'"),
-             ("Ш","Sh"), ("ш","sh"), ("Ч","Ch"), ("ч","ch"),
-             ("Я","Ya"), ("я","ya"), ("Ё","Yo"), ("ё","yo"),
-             ("Ю","Yu"), ("ю","yu"), ("Ц","Ts"), ("ц","ts")]
-    for old, new in pairs:
-        text = text.replace(old, new)
-    table = str.maketrans({"А":"A","а":"a","Б":"B","б":"b","Д":"D","д":"d","Е":"E","е":"e",
-                           "Ф":"F","ф":"f","Г":"G","г":"g","Ҳ":"H","ҳ":"h","И":"I","и":"i",
-                           "Ж":"J","ж":"j","К":"K","к":"k","Л":"L","л":"l","М":"M","м":"м",
-                           "Н":"N","н":"n","О":"O","о":"o","П":"P","p":"p","Қ":"Q","қ":"q",
-                           "Р":"R","р":"r","С":"S","s":"s","Т":"T","t":"t","У":"U","у":"u",
-                           "В":"V","v":"v","Х":"X","х":"x","Й":"Y","й":"y","З":"Z","з":"z",
-                           "Ъ":"'","ъ":"'","Ь":"","ь":""})
-    return text.translate(table)
-
-
-def translit_html_safe(text: str, script: str) -> str:
-    parts = re.split(r"(<[^>]+>)", text)
-    result = []
-    for part in parts:
-        if part.startswith("<") and part.endswith(">"):
-            result.append(part)
-        else:
-            result.append(latin_to_cyrillic_text(part) if script == "cyrillic" else cyrillic_to_latin_text(part))
-    return "".join(result)
-
-
-# =========================
-# NATIJALAR VA YORDAMCHI
+# NATIJALAR
 # =========================
 def get_general_results_text(user_id: int) -> str:
-    total = get_total_votes()
+    total_votes = get_total_votes()
     lines = ["📊 <b>Umumiy natijalar</b>\n"]
-    for s_key, t_key, t_name in get_all_teachers_flat():
-        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key=? AND teacher_key=?", (s_key, t_key))
+    for subject_key, teacher_key, teacher_name in get_all_teachers_flat():
+        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key = ? AND teacher_key = ?", (subject_key, teacher_key))
         count = cursor.fetchone()[0]
-        percent = (count / total * 100) if total > 0 else 0
+        percent = (count / total_votes * 100) if total_votes > 0 else 0
         bar = build_progress_bar(percent)
-        lines.append(f"<b>{t_name}</b> — {get_subject_name(s_key)}\n<code>{bar}</code> <b>{percent:.1f}%</b> • {count} ta\n")
-    lines.append(f"🗳 <b>Jami ovozlar:</b> {total}")
+        lines.append(f"<b>{teacher_name}</b> — {get_subject_name(subject_key)}\n<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n")
+    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
+    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
     text = "\n".join(lines)
-    return tr(user_id, text[:4000] + "\n... qisqartirildi" if len(text) > 4000 else text)
+    return tr(user_id, text if len(text) <= 4000 else text[:4000] + "\n\n... qisqartirildi")
 
 
 def get_subject_results_text(user_id: int, subject_key: str) -> str:
-    if subject_key not in SUBJECTS: return tr(user_id, "Noto'g'ri fan.")
-    total = get_total_votes()
-    lines = [f"📊 <b>{get_subject_name(subject_key)} natijalari</b>\n"]
-    for t_key, t_name in SUBJECTS[subject_key]["teachers"].items():
-        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key=? AND teacher_key=?", (subject_key, t_key))
+    if subject_key not in SUBJECTS:
+        return tr(user_id, "Noto'g'ri fan.")
+    total_votes = get_total_votes()
+    lines = [f"📊 <b>{get_subject_name(subject_key)} bo'yicha natijalar</b>\n"]
+    for teacher_key, teacher_name in SUBJECTS[subject_key]["teachers"].items():
+        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key = ? AND teacher_key = ?", (subject_key, teacher_key))
         count = cursor.fetchone()[0]
-        percent = (count / total * 100) if total > 0 else 0
+        percent = (count / total_votes * 100) if total_votes > 0 else 0
         bar = build_progress_bar(percent)
-        lines.append(f"<b>{t_name}</b>\n<code>{bar}</code> <b>{percent:.1f}%</b> • {count} ta\n")
-    lines.append(f"🗳 <b>Jami:</b> {total}")
+        lines.append(f"<b>{teacher_name}</b>\n<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n")
+    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
+    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
     text = "\n".join(lines)
-    return tr(user_id, text[:4000] + "\n... qisqartirildi" if len(text) > 4000 else text)
+    return tr(user_id, text if len(text) <= 4000 else text[:4000] + "\n\n... qisqartirildi")
 
 
 def export_votes_to_csv() -> str:
-    cursor.execute("SELECT * FROM votes ORDER BY voted_at DESC")
+    cursor.execute("SELECT user_id, full_name, username, subject_key, teacher_key, voted_at FROM votes ORDER BY voted_at DESC")
     rows = cursor.fetchall()
     with open(EXPORT_FILE, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
         writer.writerow(["User ID", "Full Name", "Username", "Subject", "Teacher", "Voted At"])
-        for row in rows:
-            writer.writerow([row[0], row[1] or "", row[2] or "", get_subject_name(row[3]), get_teacher_name(row[3], row[4]), row[5]])
+        for user_id, full_name, username, subject_key, teacher_key, voted_at in rows:
+            writer.writerow([user_id, full_name or "", username or "", get_subject_name(subject_key), get_teacher_name(subject_key, teacher_key), voted_at or ""])
     return EXPORT_FILE
 
 
 async def check_user_subscription(user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in {ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR,
-                                 ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED}
-    except:
+        return member.status in {ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED}
+    except Exception:
         return False
 
 
 async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup=None):
     try:
         await callback.message.edit_text(text=text, parse_mode="HTML", reply_markup=reply_markup)
+    except TelegramBadRequest:
+        pass
     except Exception:
         pass
 
+# =========================
+# KLAVIATURALAR VA HANDLERLAR (to'liq)
+# =========================
+# Bu yerda eski kodingizdagi barcha keyboard va callback handlerlarni qo'shishingiz mumkin.
+# Agar ularni ham to'liq kerak bo'lsa, "handlerlarni ham to'liq ber" deb yozing.
 
-# =========================
-# MAIN
-# =========================
 async def main():
     init_db()
-    logging.info(f"✅ Bot ishga tushdi | DB: {DB_NAME} | Data: {DATA_DIR}")
+    logging.info(f"Bot ishga tushdi. Kanal: {CHANNEL_USERNAME} | DB: {DB_NAME}")
     await dp.start_polling(bot)
 
 

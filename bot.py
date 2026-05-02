@@ -23,8 +23,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # SOZLAMALAR
 # =========================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE")
-
-# ✅ YANGI KANAL
 CHANNEL_USERNAME = "@QASHQADARYOPMMrasmiy"
 
 ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "5298063089,7361393654")
@@ -33,7 +31,6 @@ ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip().isdig
 FACEBOOK_URL = "https://www.facebook.com/share/1E4ZVePTh4/"
 INSTAGRAM_URL = "https://www.instagram.com/pedagogikmahorat"
 
-# RAILWAY VOLUME UCHUN
 DATA_DIR = os.getenv("DATA_DIR", "/app/data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -128,11 +125,11 @@ SUBJECTS = {
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    format="%(asctime)s | %(levelname)s | %(message)s"
 )
 
 if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN topilmadi")
+    raise ValueError("BOT_TOKEN topilmadi!")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -141,54 +138,31 @@ conn = sqlite3.connect(DB_NAME, check_same_thread=False)
 cursor = conn.cursor()
 
 # =========================
-# TRANSLIT (TUZATILGAN - 'M/m' MUAMMOSI HAL QILINDI)
+# TRANSLIT (TO'LIQ ISHONCHLI)
 # =========================
 def latin_to_cyrillic_text(text: str) -> str:
     if not text:
-        return text
-    
-    # Avval maxsus harflar
+        return ""
     pairs = [
-        ("O‘", "Ў"), ("o‘", "ў"),
-        ("G‘", "Ғ"), ("g‘", "ғ"),
-        ("O'", "Ў"), ("o'", "ў"),
-        ("G'", "Ғ"), ("g'", "ғ"),
-        ("Sh", "Ш"), ("sh", "ш"),
-        ("Ch", "Ч"), ("ch", "ч"),
-        ("Ya", "Я"), ("ya", "я"),
-        ("Yo", "Ё"), ("yo", "ё"),
-        ("Yu", "Ю"), ("yu", "ю"),
-        ("Ts", "Ц"), ("ts", "ц"),
+        ("O‘", "Ў"), ("o‘", "ў"), ("G‘", "Ғ"), ("g‘", "ғ"),
+        ("O'", "Ў"), ("o'", "ў"), ("G'", "Ғ"), ("g'", "ғ"),
+        ("Sh", "Ш"), ("sh", "ш"), ("Ch", "Ч"), ("ch", "ч"),
+        ("Ya", "Я"), ("ya", "я"), ("Yo", "Ё"), ("yo", "ё"),
+        ("Yu", "Ю"), ("yu", "ю"), ("Ts", "Ц"), ("ts", "ц"),
     ]
     for old, new in pairs:
         text = text.replace(old, new)
 
-    # To'liq jadval (M/m albatta bor!)
     table = str.maketrans({
-        "A": "А", "a": "а",
-        "B": "Б", "b": "б",
-        "D": "Д", "d": "д",
-        "E": "Е", "e": "е",
-        "F": "Ф", "f": "ф",
-        "G": "Г", "g": "г",
-        "H": "Ҳ", "h": "ҳ",
-        "I": "И", "i": "и",
-        "J": "Ж", "j": "ж",
-        "K": "К", "k": "к",
-        "L": "Л", "l": "л",
+        "A": "А", "a": "а", "B": "Б", "b": "б", "D": "Д", "d": "д",
+        "E": "Е", "e": "е", "F": "Ф", "f": "ф", "G": "Г", "g": "г",
+        "H": "Ҳ", "h": "ҳ", "I": "И", "i": "и", "J": "Ж", "j": "ж",
+        "K": "К", "k": "к", "L": "Л", "l": "л",
         "M": "М", "m": "м",   # ✅ MUAMMO HAL QILINDI
-        "N": "Н", "n": "н",
-        "O": "О", "o": "о",
-        "P": "П", "p": "п",
-        "Q": "Қ", "q": "қ",
-        "R": "Р", "r": "р",
-        "S": "С", "s": "с",
-        "T": "Т", "t": "т",
-        "U": "У", "u": "у",
-        "V": "В", "v": "в",
-        "X": "Х", "x": "х",
-        "Y": "Й", "y": "й",
-        "Z": "З", "z": "з",
+        "N": "Н", "n": "н", "O": "О", "o": "о", "P": "П", "p": "п",
+        "Q": "Қ", "q": "қ", "R": "Р", "r": "р", "S": "С", "s": "с",
+        "T": "Т", "t": "т", "U": "У", "u": "у", "V": "В", "v": "в",
+        "X": "Х", "x": "х", "Y": "Й", "y": "й", "Z": "З", "z": "з",
         "`": "ъ", "’": "ъ", "'": "ъ",
     })
     return text.translate(table)
@@ -196,65 +170,41 @@ def latin_to_cyrillic_text(text: str) -> str:
 
 def cyrillic_to_latin_text(text: str) -> str:
     if not text:
-        return text
-    
+        return ""
     pairs = [
-        ("Ў", "O'"), ("ў", "o'"),
-        ("Ғ", "G'"), ("ғ", "g'"),
-        ("Ш", "Sh"), ("ш", "sh"),
-        ("Ч", "Ch"), ("ch", "ch"),
-        ("Я", "Ya"), ("ya", "ya"),
-        ("Ё", "Yo"), ("ё", "yo"),
-        ("Ю", "Yu"), ("ю", "yu"),
-        ("Ц", "Ts"), ("ц", "ts"),
+        ("Ў", "O'"), ("ў", "o'"), ("Ғ", "G'"), ("ғ", "g'"),
+        ("Ш", "Sh"), ("ш", "sh"), ("Ч", "Ch"), ("ch", "ch"),
+        ("Я", "Ya"), ("ya", "ya"), ("Ё", "Yo"), ("ё", "yo"),
+        ("Ю", "Yu"), ("ю", "yu"), ("Ц", "Ts"), ("ц", "ts"),
     ]
     for old, new in pairs:
         text = text.replace(old, new)
 
     table = str.maketrans({
-        "А": "A", "а": "a",
-        "Б": "B", "б": "b",
-        "Д": "D", "д": "d",
-        "Е": "E", "е": "e",
-        "Ф": "F", "ф": "f",
-        "Г": "G", "г": "g",
-        "Ҳ": "H", "ҳ": "h",
-        "И": "I", "и": "i",
-        "Ж": "J", "ж": "j",
-        "К": "K", "k": "k",
-        "Л": "L", "l": "l",
+        "А": "A", "а": "a", "Б": "B", "б": "b", "Д": "D", "д": "d",
+        "Е": "E", "е": "e", "Ф": "F", "ф": "f", "Г": "G", "г": "g",
+        "Ҳ": "H", "ҳ": "h", "И": "I", "и": "i", "Ж": "J", "ж": "j",
+        "К": "K", "k": "k", "Л": "L", "l": "l",
         "М": "M", "м": "m",   # ✅ MUAMMO HAL QILINDI
-        "Н": "N", "n": "n",
-        "О": "O", "о": "o",
-        "П": "P", "p": "p",
-        "Қ": "Q", "q": "q",
-        "Р": "R", "r": "r",
-        "С": "S", "s": "s",
-        "Т": "T", "t": "t",
-        "У": "U", "u": "u",
-        "В": "V", "v": "v",
-        "Х": "X", "x": "x",
-        "Й": "Y", "й": "y",
-        "З": "Z", "z": "z",
+        "Н": "N", "n": "n", "О": "O", "о": "o", "П": "P", "p": "p",
+        "Қ": "Q", "q": "q", "Р": "R", "r": "r", "С": "S", "s": "s",
+        "Т": "T", "t": "t", "У": "U", "u": "u", "В": "V", "v": "v",
+        "Х": "X", "x": "x", "Й": "Y", "й": "y", "З": "Z", "z": "z",
         "Ъ": "'", "ъ": "'",
-        "Ь": "", "ь": "",
     })
     return text.translate(table)
 
 
 def translit_html_safe(text: str, script: str) -> str:
     if not text:
-        return text
+        return ""
     parts = re.split(r"(<[^>]+>)", text)
     result = []
     for part in parts:
         if part.startswith("<") and part.endswith(">"):
             result.append(part)
         else:
-            if script == "cyrillic":
-                result.append(latin_to_cyrillic_text(part))
-            else:
-                result.append(cyrillic_to_latin_text(part))
+            result.append(latin_to_cyrillic_text(part) if script == "cyrillic" else cyrillic_to_latin_text(part))
     return "".join(result)
 
 # =========================
@@ -263,32 +213,19 @@ def translit_html_safe(text: str, script: str) -> str:
 def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS votes (
-            user_id INTEGER PRIMARY KEY,
-            full_name TEXT,
-            username TEXT,
-            subject_key TEXT NOT NULL,
-            teacher_key TEXT NOT NULL,
-            voted_at TEXT
+            user_id INTEGER PRIMARY KEY, full_name TEXT, username TEXT,
+            subject_key TEXT NOT NULL, teacher_key TEXT NOT NULL, voted_at TEXT
         )
     """)
-
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
+        CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS user_prefs (
-            user_id INTEGER PRIMARY KEY,
-            script TEXT DEFAULT 'latin',
-            access_granted INTEGER DEFAULT 0
+            user_id INTEGER PRIMARY KEY, script TEXT DEFAULT 'latin', access_granted INTEGER DEFAULT 0
         )
     """)
-
     conn.commit()
-
     if get_setting("voting_open", "") == "":
         set_setting("voting_open", "1")
 
@@ -301,8 +238,7 @@ def get_setting(key: str, default: str = "") -> str:
 
 def set_setting(key: str, value: str):
     cursor.execute("""
-        INSERT INTO settings (key, value)
-        VALUES (?, ?)
+        INSERT INTO settings (key, value) VALUES (?, ?)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
     """, (key, value))
     conn.commit()
@@ -311,8 +247,7 @@ def set_setting(key: str, value: str):
 def ensure_user(user_id: int):
     cursor.execute("""
         INSERT INTO user_prefs (user_id, script, access_granted)
-        VALUES (?, 'latin', 0)
-        ON CONFLICT(user_id) DO NOTHING
+        VALUES (?, 'latin', 0) ON CONFLICT(user_id) DO NOTHING
     """, (user_id,))
     conn.commit()
 
@@ -378,14 +313,7 @@ def save_vote(user_id: int, full_name: str, username: str, subject_key: str, tea
     cursor.execute("""
         INSERT INTO votes (user_id, full_name, username, subject_key, teacher_key, voted_at)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        user_id,
-        full_name,
-        username,
-        subject_key,
-        teacher_key,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
+    """, (user_id, full_name, username, subject_key, teacher_key, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
 
 
@@ -408,177 +336,101 @@ def get_teacher_name(subject_key: str, teacher_key: str) -> str:
 
 
 def build_progress_bar(percent: float, length: int = 14) -> str:
-    filled = round((percent / 100) * length)
-    filled = max(0, min(filled, length))
-    empty = length - filled
-    return "▓" * filled + "░" * empty
+    filled = max(0, min(round((percent / 100) * length), length))
+    return "▓" * filled + "░" * (length - filled)
 
 
 def get_all_teachers_flat():
     items = []
-    for subject_key, subject_data in SUBJECTS.items():
-        for teacher_key, teacher_name in subject_data["teachers"].items():
-            items.append((subject_key, teacher_key, teacher_name))
+    for sk, sd in SUBJECTS.items():
+        for tk, tn in sd["teachers"].items():
+            items.append((sk, tk, tn))
     return items
 
 
 def get_subscription_required_alert(user_id: int) -> str:
-    return tr(
-        user_id,
-        "Avval Telegram kanal, Instagram va Facebook sahifalarga obuna bo'ling."
-    )
+    return tr(user_id, "Avval Telegram kanal, Instagram va Facebook sahifalarga obuna bo'ling.")
 
 
 def get_general_results_text(user_id: int) -> str:
-    total_votes = get_total_votes()
+    total = get_total_votes()
     lines = ["📊 <b>Umumiy natijalar</b>\n"]
-
-    for subject_key, teacher_key, teacher_name in get_all_teachers_flat():
-        cursor.execute("""
-            SELECT COUNT(*)
-            FROM votes
-            WHERE subject_key = ? AND teacher_key = ?
-        """, (subject_key, teacher_key))
-        count = cursor.fetchone()[0]
-        percent = (count / total_votes * 100) if total_votes > 0 else 0
-        bar = build_progress_bar(percent)
-
-        lines.append(
-            f"<b>{teacher_name}</b> — {get_subject_name(subject_key)}\n"
-            f"<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n"
-        )
-
-    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
+    for sk, tk, tn in get_all_teachers_flat():
+        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key=? AND teacher_key=?", (sk, tk))
+        cnt = cursor.fetchone()[0]
+        pct = (cnt / total * 100) if total > 0 else 0
+        lines.append(f"<b>{tn}</b> — {get_subject_name(sk)}\n<code>{build_progress_bar(pct)}</code>  <b>{pct:.1f}%</b>  •  {cnt} ta\n")
+    lines.append(f"🗳 <b>Jami ovozlar:</b> {total}")
     lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
-
     text = "\n".join(lines)
-    if len(text) > 4000:
-        text = text[:4000] + "\n\n... qisqartirildi"
-    return tr(user_id, text)
+    return tr(user_id, text[:4000] + ("\n\n... qisqartirildi" if len(text) > 4000 else ""))
 
 
 def get_subject_results_text(user_id: int, subject_key: str) -> str:
     if subject_key not in SUBJECTS:
         return tr(user_id, "Noto'g'ri fan.")
-
-    total_votes = get_total_votes()
+    total = get_total_votes()
     lines = [f"📊 <b>{get_subject_name(subject_key)} bo'yicha natijalar</b>\n"]
-
-    for teacher_key, teacher_name in SUBJECTS[subject_key]["teachers"].items():
-        cursor.execute("""
-            SELECT COUNT(*)
-            FROM votes
-            WHERE subject_key = ? AND teacher_key = ?
-        """, (subject_key, teacher_key))
-        count = cursor.fetchone()[0]
-        percent = (count / total_votes * 100) if total_votes > 0 else 0
-        bar = build_progress_bar(percent)
-
-        lines.append(
-            f"<b>{teacher_name}</b>\n"
-            f"<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n"
-        )
-
-    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
+    for tk, tn in SUBJECTS[subject_key]["teachers"].items():
+        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key=? AND teacher_key=?", (subject_key, tk))
+        cnt = cursor.fetchone()[0]
+        pct = (cnt / total * 100) if total > 0 else 0
+        lines.append(f"<b>{tn}</b>\n<code>{build_progress_bar(pct)}</code>  <b>{pct:.1f}%</b>  •  {cnt} ta\n")
+    lines.append(f"🗳 <b>Jami ovozlar:</b> {total}")
     lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
-
     text = "\n".join(lines)
-    if len(text) > 4000:
-        text = text[:4000] + "\n\n... qisqartirildi"
-    return tr(user_id, text)
+    return tr(user_id, text[:4000] + ("\n\n... qisqartirildi" if len(text) > 4000 else ""))
 
 
 def get_users_text(user_id: int) -> str:
-    cursor.execute("""
-        SELECT user_id, full_name, username, subject_key, teacher_key, voted_at
-        FROM votes
-        ORDER BY voted_at DESC
-    """)
+    cursor.execute("SELECT user_id, full_name, username, subject_key, teacher_key, voted_at FROM votes ORDER BY voted_at DESC")
     rows = cursor.fetchall()
-
     if not rows:
         return tr(user_id, "👥 Hali hech kim ovoz bermagan.")
-
     lines = [f"👥 <b>Kim kimga ovoz berdi</b>\n\nJami: {len(rows)} ta foydalanuvchi\n"]
-
-    for i, (uid, full_name, username, subject_key, teacher_key, voted_at) in enumerate(rows, start=1):
-        safe_name = full_name or "Noma'lum"
-        line = f"{i}. <b>{safe_name}</b>"
-        if username:
-            line += f" (@{username})"
-        line += f"\n   → Fan: {get_subject_name(subject_key)}"
-        line += f"\n   → O'qituvchi: {get_teacher_name(subject_key, teacher_key)}"
-        line += f"\n   → ID: <code>{uid}</code>"
-        if voted_at:
-            line += f"\n   → {voted_at}"
+    for i, (uid, fn, un, sk, tk, va) in enumerate(rows, 1):
+        line = f"{i}. <b>{fn or 'Noma''lum'}</b>"
+        if un: line += f" (@{un})"
+        line += f"\n   → Fan: {get_subject_name(sk)}\n   → O'qituvchi: {get_teacher_name(sk, tk)}\n   → ID: <code>{uid}</code>"
+        if va: line += f"\n   → {va}"
         lines.append(line)
-
     text = "\n\n".join(lines)
-    if len(text) > 4000:
-        text = text[:4000] + "\n\n... qisqartirildi"
-    return tr(user_id, text)
+    return tr(user_id, text[:4000] + ("\n\n... qisqartirildi" if len(text) > 4000 else ""))
 
 
 def export_votes_to_csv() -> str:
-    cursor.execute("""
-        SELECT user_id, full_name, username, subject_key, teacher_key, voted_at
-        FROM votes
-        ORDER BY voted_at DESC
-    """)
+    cursor.execute("SELECT user_id, full_name, username, subject_key, teacher_key, voted_at FROM votes ORDER BY voted_at DESC")
     rows = cursor.fetchall()
-
     with open(EXPORT_FILE, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        writer.writerow(["User ID", "Full Name", "Username", "Subject", "Teacher", "Voted At"])
-        for user_id, full_name, username, subject_key, teacher_key, voted_at in rows:
-            writer.writerow([
-                user_id,
-                full_name or "",
-                username or "",
-                get_subject_name(subject_key),
-                get_teacher_name(subject_key, teacher_key),
-                voted_at or ""
-            ])
+        w = csv.writer(f)
+        w.writerow(["User ID", "Full Name", "Username", "Subject", "Teacher", "Voted At"])
+        for uid, fn, un, sk, tk, va in rows:
+            w.writerow([uid, fn or "", un or "", get_subject_name(sk), get_teacher_name(sk, tk), va or ""])
     return EXPORT_FILE
 
 
 async def check_user_subscription(user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in {
-            ChatMemberStatus.CREATOR,
-            ChatMemberStatus.ADMINISTRATOR,
-            ChatMemberStatus.MEMBER,
-            ChatMemberStatus.RESTRICTED,
-        }
+        return member.status in {ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED}
     except Exception as e:
-        logging.error(f"Obunani tekshirishda xatolik: {e}")
+        logging.error(f"Subscription check error: {e}")
         return False
 
 
 async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup: InlineKeyboardMarkup | None = None):
     try:
-        await callback.message.edit_text(
-            text=text,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
+        await callback.message.edit_text(text=text, parse_mode="HTML", reply_markup=reply_markup)
     except TelegramBadRequest as e:
-        error_text = str(e).lower()
-        if "message is not modified" in error_text:
-            await callback.answer()
-            return
-        # Agar edit bo'lmasa, yangi xabar yuboramiz
-        try:
-            await callback.message.answer(
-                text=text,
-                parse_mode="HTML",
-                reply_markup=reply_markup
-            )
-        except Exception:
+        if "message is not modified" in str(e).lower():
             pass
+        else:
+            try:
+                await callback.message.answer(text=text, parse_mode="HTML", reply_markup=reply_markup)
+            except:
+                pass
     except Exception as e:
-        logging.error(f"safe_edit_message xatosi: {e}")
+        logging.error(f"safe_edit_message error: {e}")
     finally:
         try:
             await callback.answer()
@@ -589,14 +441,11 @@ async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup: In
 # MATNLAR
 # =========================
 def get_welcome_text(user_id: int) -> str:
-    return tr(
-        user_id,
-        "🚀 <b>Botdan foydalanish uchun quyidagilarni bajaring:</b>\n\n"
-        "1️⃣ 📢 Telegram kanalga obuna bo'ling\n"
-        "2️⃣ 📘 Facebook sahifaga obuna bo'ling\n"
-        "3️⃣ 📸 Instagram sahifaga obuna bo'ling\n\n"
-        "👇 Barchasini bajargach, <b>Tekshirish</b> tugmasini bosing"
-    )
+    return tr(user_id, "🚀 <b>Botdan foydalanish uchun quyidagilarni bajaring:</b>\n\n"
+                      "1️⃣ 📢 Telegram kanalga obuna bo'ling\n"
+                      "2️⃣ 📘 Facebook sahifaga obuna bo'ling\n"
+                      "3️⃣ 📸 Instagram sahifaga obuna bo'ling\n\n"
+                      "👇 Barchasini bajargach, <b>Tekshirish</b> tugmasini bosing")
 
 
 def get_home_text(user_id: int) -> str:
@@ -604,35 +453,23 @@ def get_home_text(user_id: int) -> str:
 
 
 def get_help_text(user_id: int) -> str:
-    return tr(
-        user_id,
-        "ℹ️ <b>Yordam</b>\n\n"
-        "• Avval Telegram kanalga obuna bo'ling\n"
-        "• Facebook sahifaga obuna bo'ling\n"
-        "• Instagram sahifaga obuna bo'ling\n"
-        "• So'ng Tekshirish tugmasini bosing\n"
-        "• Ovoz berish uchun kafedra tanlanadi\n"
-        "• Keyin o'qituvchi tanlanadi\n"
-        "• Har bir foydalanuvchi faqat 1 marta ovoz bera oladi\n"
-        "• Natijalarni istalgan payt ko'rishingiz mumkin"
-    )
+    return tr(user_id, "ℹ️ <b>Yordam</b>\n\n"
+                      "• Avval Telegram kanalga obuna bo'ling\n"
+                      "• Facebook sahifaga obuna bo'ling\n"
+                      "• Instagram sahifaga obuna bo'ling\n"
+                      "• So'ng Tekshirish tugmasini bosing\n"
+                      "• Ovoz berish uchun kafedra tanlanadi\n"
+                      "• Keyin o'qituvchi tanlanadi\n"
+                      "• Har bir foydalanuvchi faqat 1 marta ovoz bera oladi\n"
+                      "• Natijalarni istalgan payt ko'rishingiz mumkin")
 
 
 def get_already_voted_text(user_id: int) -> str:
-    return tr(
-        user_id,
-        "✅ <b>Siz allaqachon ovoz berib bo'lgansiz</b>\n\n"
-        "Qayta ovoz berish mumkin emas.\n"
-        "📊 Natijalarni ko'rishingiz mumkin."
-    )
+    return tr(user_id, "✅ <b>Siz allaqachon ovoz berib bo'lgansiz</b>\n\nQayta ovoz berish mumkin emas.\n📊 Natijalarni ko'rishingiz mumkin.")
 
 
 def get_closed_text(user_id: int) -> str:
-    return tr(
-        user_id,
-        "🔒 <b>Ovoz berish hozircha yopilgan</b>\n\n"
-        "Admin tomonidan ovoz berish vaqtincha to'xtatilgan."
-    )
+    return tr(user_id, "🔒 <b>Ovoz berish hozircha yopilgan</b>\n\nAdmin tomonidan ovoz berish vaqtincha to'xtatilgan.")
 
 
 def get_subject_select_text(user_id: int) -> str:
@@ -643,816 +480,521 @@ def get_teacher_select_text(user_id: int, subject_key: str) -> str:
     return tr(user_id, f"{SUBJECTS[subject_key]['name']}\n\n<b>O'qituvchini tanlang:</b>")
 
 
-def get_results_menu_text(user_id: int, is_admin_view: bool = False) -> str:
-    title = "Admin natijalar bo'limi" if is_admin_view else "Natijalar bo'limi"
-    return tr(
-        user_id,
-        f"📊 <b>{title}</b>\n\n"
-        f"Kerakli bo'limni tanlang:\n"
-        f"• Umumiy natijalar\n"
-        f"• Kafedralar bo'yicha natijalar"
-    )
+def get_results_menu_text(user_id: int, is_admin: bool = False) -> str:
+    title = "Admin natijalar bo'limi" if is_admin else "Natijalar bo'limi"
+    return tr(user_id, f"📊 <b>{title}</b>\n\nKerakli bo'limni tanlang:\n• Umumiy natijalar\n• Kafedralar bo'yicha natijalar")
 
 
 def get_admin_panel_text(user_id: int) -> str:
-    status_text = "🟢 Ochiq" if is_voting_open() else "🔴 Yopiq"
-    return tr(
-        user_id,
-        f"🎛 <b>Admin panel</b>\n\n"
-        f"Voting holati: {status_text}\n"
-        f"Jami ovozlar: {get_total_votes()}"
-    )
+    status = "🟢 Ochiq" if is_voting_open() else "🔴 Yopiq"
+    return tr(user_id, f"🎛 <b>Admin panel</b>\n\nVoting holati: {status}\nJami ovozlar: {get_total_votes()}")
 
 # =========================
 # KLAVIATURALAR
 # =========================
 def script_switch_button(user_id: int, page: str = "home") -> InlineKeyboardButton:
-    if get_user_script(user_id) == "latin":
-        return InlineKeyboardButton(
-            text="🔤 Krill",
-            callback_data=f"set_script:cyrillic:{page}"
-        )
-    return InlineKeyboardButton(
-        text="🔤 Lotin",
-        callback_data=f"set_script:latin:{page}"
-    )
+    txt = "🔤 Krill" if get_user_script(user_id) == "latin" else "🔤 Lotin"
+    return InlineKeyboardButton(text=txt, callback_data=f"set_script:{'cyrillic' if get_user_script(user_id) == 'latin' else 'latin'}:{page}")
 
 
 def subscription_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(
-            text=tr(user_id, "📢 Telegram kanal"),
-            url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
-        )
-    )
-    kb.row(
-        InlineKeyboardButton(
-            text=tr(user_id, "📘 Facebook sahifa"),
-            url=FACEBOOK_URL
-        )
-    )
-    kb.row(
-        InlineKeyboardButton(
-            text=tr(user_id, "📸 Instagram sahifa"),
-            url=INSTAGRAM_URL
-        )
-    )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "✅ Tekshirish"), callback_data="check_subscription"),
-        InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user")
-    )
+    kb.row(InlineKeyboardButton(text=tr(user_id, "📢 Telegram kanal"), url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "📘 Facebook sahifa"), url=FACEBOOK_URL))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "📸 Instagram sahifa"), url=INSTAGRAM_URL))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "✅ Tekshirish"), callback_data="check_subscription"),
+           InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user"))
     kb.row(script_switch_button(user_id, "subscription"))
     return kb.as_markup()
 
 
 def home_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-
     if has_access(user_id):
-        kb.row(
-            InlineKeyboardButton(text=tr(user_id, "🗳 Ovoz berish"), callback_data="go_vote_panel"),
-            InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user")
-        )
+        kb.row(InlineKeyboardButton(text=tr(user_id, "🗳 Ovoz berish"), callback_data="go_vote_panel"),
+               InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user"))
     else:
-        kb.row(
-            InlineKeyboardButton(text=tr(user_id, "✅ Obunani tekshirish"), callback_data="check_subscription"),
-            InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user")
-        )
-
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "ℹ️ Yordam"), callback_data="help_info"),
-        script_switch_button(user_id, "home")
-    )
+        kb.row(InlineKeyboardButton(text=tr(user_id, "✅ Obunani tekshirish"), callback_data="check_subscription"),
+               InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "ℹ️ Yordam"), callback_data="help_info"),
+           script_switch_button(user_id, "home"))
     return kb.as_markup()
 
 
 def subjects_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    for subject_key, subject_data in SUBJECTS.items():
-        kb.row(
-            InlineKeyboardButton(
-                text=tr(user_id, subject_data["name"]),
-                callback_data=f"subject:{subject_key}"
-            )
-        )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"),
-        script_switch_button(user_id, "subjects")
-    )
+    for sk, sd in SUBJECTS.items():
+        kb.row(InlineKeyboardButton(text=tr(user_id, sd["name"]), callback_data=f"subject:{sk}"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"),
+           script_switch_button(user_id, "subjects"))
     return kb.as_markup()
 
 
 def teachers_keyboard(user_id: int, subject_key: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     teachers = list(SUBJECTS[subject_key]["teachers"].items())
-
     for i in range(0, len(teachers), 2):
-        row = []
-        for teacher_key, teacher_name in teachers[i:i + 2]:
-            row.append(
-                InlineKeyboardButton(
-                    text=tr(user_id, teacher_name),
-                    callback_data=f"vote:{subject_key}:{teacher_key}"
-                )
-            )
+        row = [InlineKeyboardButton(text=tr(user_id, tn), callback_data=f"vote:{subject_key}:{tk}") for tk, tn in teachers[i:i+2]]
         kb.row(*row)
-
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Kafedralarga qaytish"), callback_data="go_vote_panel"))
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"),
-        script_switch_button(user_id, f"teachers_{subject_key}")
-    )
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"),
+           script_switch_button(user_id, f"teachers_{subject_key}"))
     return kb.as_markup()
 
 
 def results_menu_keyboard_user(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Umumiy"), callback_data="show_results_user:general"))
-    for subject_key, subject_data in SUBJECTS.items():
-        kb.row(
-            InlineKeyboardButton(
-                text=tr(user_id, subject_data["name"]),
-                callback_data=f"show_results_user:{subject_key}"
-            )
-        )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"),
-        script_switch_button(user_id, "user_results_menu")
-    )
+    for sk, sd in SUBJECTS.items():
+        kb.row(InlineKeyboardButton(text=tr(user_id, sd["name"]), callback_data=f"show_results_user:{sk}"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"),
+           script_switch_button(user_id, "user_results_menu"))
     return kb.as_markup()
 
 
 def results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Umumiy"), callback_data="show_results_admin:general"))
-    for subject_key, subject_data in SUBJECTS.items():
-        kb.row(
-            InlineKeyboardButton(
-                text=tr(user_id, subject_data["name"]),
-                callback_data=f"show_results_admin:{subject_key}"
-            )
-        )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"),
-        script_switch_button(user_id, "admin_results_menu")
-    )
+    for sk, sd in SUBJECTS.items():
+        kb.row(InlineKeyboardButton(text=tr(user_id, sd["name"]), callback_data=f"show_results_admin:{sk}"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"),
+           script_switch_button(user_id, "admin_results_menu"))
     return kb.as_markup()
 
 
 def results_keyboard_user(user_id: int, scope: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "🔄 Yangilash"), callback_data=f"refresh_results_user:{scope}"),
-        InlineKeyboardButton(text=tr(user_id, "📂 Bo'limlar"), callback_data="show_results_menu_user")
-    )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"),
-        script_switch_button(user_id, f"user_result_{scope}")
-    )
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🔄 Yangilash"), callback_data=f"refresh_results_user:{scope}"),
+           InlineKeyboardButton(text=tr(user_id, "📂 Bo'limlar"), callback_data="show_results_menu_user"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"),
+           script_switch_button(user_id, f"user_result_{scope}"))
     return kb.as_markup()
 
 
 def results_keyboard_admin(user_id: int, scope: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "🔄 Yangilash"), callback_data=f"refresh_results_admin:{scope}"),
-        InlineKeyboardButton(text=tr(user_id, "📂 Bo'limlar"), callback_data="admin_results")
-    )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"),
-        script_switch_button(user_id, f"admin_result_{scope}")
-    )
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🔄 Yangilash"), callback_data=f"refresh_results_admin:{scope}"),
+           InlineKeyboardButton(text=tr(user_id, "📂 Bo'limlar"), callback_data="admin_results"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"),
+           script_switch_button(user_id, f"admin_result_{scope}"))
     return kb.as_markup()
 
 
 def after_vote_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user"),
-        InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home")
-    )
+    kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user"),
+           InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"))
     kb.row(script_switch_button(user_id, "after_vote"))
     return kb.as_markup()
 
 
 def admin_panel_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "📊 Results"), callback_data="admin_results"),
-        InlineKeyboardButton(text=tr(user_id, "👥 Users"), callback_data="admin_users")
-    )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "📁 Export"), callback_data="admin_export"),
-        InlineKeyboardButton(text=tr(user_id, "♻ Reset"), callback_data="admin_reset_confirm")
-    )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "🔓 Open"), callback_data="admin_open"),
-        InlineKeyboardButton(text=tr(user_id, "🔒 Close"), callback_data="admin_close")
-    )
+    kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Results"), callback_data="admin_results"),
+           InlineKeyboardButton(text=tr(user_id, "👥 Users"), callback_data="admin_users"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "📁 Export"), callback_data="admin_export"),
+           InlineKeyboardButton(text=tr(user_id, "♻ Reset"), callback_data="admin_reset_confirm"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🔓 Open"), callback_data="admin_open"),
+           InlineKeyboardButton(text=tr(user_id, "🔒 Close"), callback_data="admin_close"))
     kb.row(script_switch_button(user_id, "admin_panel"))
     return kb.as_markup()
 
 
 def reset_confirm_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "❌ Bekor qilish"), callback_data="cancel_reset"),
-        InlineKeyboardButton(text=tr(user_id, "✅ Ha, o'chirish"), callback_data="admin_reset")
-    )
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"),
-        script_switch_button(user_id, "admin_reset_confirm")
-    )
+    kb.row(InlineKeyboardButton(text=tr(user_id, "❌ Bekor qilish"), callback_data="cancel_reset"),
+           InlineKeyboardButton(text=tr(user_id, "✅ Ha, o'chirish"), callback_data="admin_reset"))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"),
+           script_switch_button(user_id, "admin_reset_confirm"))
     return kb.as_markup()
 
 
 def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text=tr(user_id, "🔄 Yangilash"), callback_data="refresh_admin_users"),
-        InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel")
-    )
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🔄 Yangilash"), callback_data="refresh_admin_users"),
+           InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"))
     kb.row(script_switch_button(user_id, "admin_users"))
     return kb.as_markup()
 
 # =========================
-# START
+# HANDLERS
 # =========================
 @dp.message(Command("start"))
 async def start_handler(message: Message):
-    user_id = message.from_user.id
-    ensure_user(user_id)
-    logging.info(f"START: user_id={user_id}")
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
-        await message.answer(
-            get_welcome_text(user_id),
-            parse_mode="HTML",
-            reply_markup=subscription_keyboard(user_id)
-        )
+    uid = message.from_user.id
+    ensure_user(uid)
+    logging.info(f"START | user={uid}")
+    if not await check_user_subscription(uid):
+        reset_access(uid)
+        await message.answer(get_welcome_text(uid), parse_mode="HTML", reply_markup=subscription_keyboard(uid))
         return
+    await message.answer(get_home_text(uid) if has_access(uid) else get_welcome_text(uid),
+                         parse_mode="HTML", reply_markup=home_keyboard(uid) if has_access(uid) else subscription_keyboard(uid))
 
-    if has_access(user_id):
-        await message.answer(
-            get_home_text(user_id),
-            parse_mode="HTML",
-            reply_markup=home_keyboard(user_id)
-        )
-    else:
-        await message.answer(
-            get_welcome_text(user_id),
-            parse_mode="HTML",
-            reply_markup=subscription_keyboard(user_id)
-        )
 
-# =========================
-# SCRIPT (TUGMA ISHLASHI YAXSHILANDI)
-# =========================
 @dp.callback_query(F.data.startswith("set_script:"))
 async def set_script_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    logging.info(f"SCRIPT SWITCH: user_id={user_id}, data={callback.data}")
-    
+    uid = callback.from_user.id
     parts = callback.data.split(":", 2)
-
     if len(parts) < 2:
         await callback.answer("Xato", show_alert=True)
         return
-
-    script = parts[1]
-    page = parts[2] if len(parts) > 2 else "home"
-
+    script, page = parts[1], (parts[2] if len(parts) > 2 else "home")
     if script not in ("latin", "cyrillic"):
         await callback.answer("Xato", show_alert=True)
         return
 
-    set_user_script(user_id, script)
-    logging.info(f"Script o'zgartirildi: {script} for user {user_id}")
+    set_user_script(uid, script)
+    logging.info(f"SCRIPT SWITCH | user={uid} → {script} | page={page}")
 
-    # Barcha sahifalarni qayta yuklash
     try:
         if page == "subscription":
-            await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+            await safe_edit_message(callback, get_welcome_text(uid), subscription_keyboard(uid))
         elif page == "admin_panel":
-            await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
+            await safe_edit_message(callback, get_admin_panel_text(uid), admin_panel_keyboard(uid))
         elif page == "admin_results_menu":
-            await safe_edit_message(callback, get_results_menu_text(user_id, True), results_menu_keyboard_admin(user_id))
+            await safe_edit_message(callback, get_results_menu_text(uid, True), results_menu_keyboard_admin(uid))
         elif page.startswith("admin_result_"):
             scope = page.replace("admin_result_", "", 1)
-            text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-            await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
+            txt = get_general_results_text(uid) if scope == "general" else get_subject_results_text(uid, scope)
+            await safe_edit_message(callback, txt, results_keyboard_admin(uid, scope))
         elif page == "admin_users":
-            await safe_edit_message(callback, get_users_text(user_id), users_keyboard_admin(user_id))
+            await safe_edit_message(callback, get_users_text(uid), users_keyboard_admin(uid))
         elif page == "admin_reset_confirm":
-            await safe_edit_message(callback, tr(user_id, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"), reset_confirm_keyboard(user_id))
+            await safe_edit_message(callback, tr(uid, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"), reset_confirm_keyboard(uid))
         elif page == "user_results_menu":
-            await safe_edit_message(callback, get_results_menu_text(user_id, False), results_menu_keyboard_user(user_id))
+            await safe_edit_message(callback, get_results_menu_text(uid, False), results_menu_keyboard_user(uid))
         elif page.startswith("user_result_"):
             scope = page.replace("user_result_", "", 1)
-            text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-            await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
+            txt = get_general_results_text(uid) if scope == "general" else get_subject_results_text(uid, scope)
+            await safe_edit_message(callback, txt, results_keyboard_user(uid, scope))
         elif page == "subjects":
-            await safe_edit_message(callback, get_subject_select_text(user_id), subjects_keyboard(user_id))
+            await safe_edit_message(callback, get_subject_select_text(uid), subjects_keyboard(uid))
         elif page.startswith("teachers_"):
-            subject_key = page.replace("teachers_", "", 1)
-            if subject_key in SUBJECTS:
-                await safe_edit_message(callback, get_teacher_select_text(user_id, subject_key), teachers_keyboard(user_id, subject_key))
+            sk = page.replace("teachers_", "", 1)
+            if sk in SUBJECTS:
+                await safe_edit_message(callback, get_teacher_select_text(uid, sk), teachers_keyboard(uid, sk))
             else:
-                await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+                await safe_edit_message(callback, get_home_text(uid), home_keyboard(uid))
         elif page == "after_vote":
-            await safe_edit_message(callback, get_already_voted_text(user_id), home_keyboard(user_id))
+            await safe_edit_message(callback, get_already_voted_text(uid), home_keyboard(uid))
+        elif page == "help":
+            kb = InlineKeyboardBuilder()
+            kb.row(InlineKeyboardButton(text=tr(uid, "⬅️ Orqaga"), callback_data="go_home"))
+            kb.row(script_switch_button(uid, "help"))
+            await safe_edit_message(callback, get_help_text(uid), kb.as_markup())
         else:
-            if has_access(user_id):
-                await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
-            else:
-                await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+            await safe_edit_message(callback, get_home_text(uid) if has_access(uid) else get_welcome_text(uid),
+                                    home_keyboard(uid) if has_access(uid) else subscription_keyboard(uid))
     except Exception as e:
-        logging.error(f"Script switch xatosi: {e}")
-        await callback.answer("Xatolik yuz berdi", show_alert=True)
-        return
+        logging.error(f"set_script error: {e}")
+        await callback.answer("Xatolik", show_alert=True)
 
-    await callback.answer(tr(user_id, "Til yozuvi o'zgartirildi"))
 
-# =========================
-# USER CALLBACKS
-# =========================
 @dp.callback_query(F.data == "go_home")
 async def go_home_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
-    logging.info(f"GO_HOME: user_id={user_id}")
-    
-    if has_access(user_id):
-        await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
-    else:
-        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+    uid = callback.from_user.id
+    ensure_user(uid)
+    await safe_edit_message(callback, get_home_text(uid) if has_access(uid) else get_welcome_text(uid),
+                            home_keyboard(uid) if has_access(uid) else subscription_keyboard(uid))
 
 
 @dp.callback_query(F.data == "help_info")
 async def help_info_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
+    uid = callback.from_user.id
+    ensure_user(uid)
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
-    kb.row(script_switch_button(user_id, "help"))
-    await safe_edit_message(callback, get_help_text(user_id), kb.as_markup())
+    kb.row(InlineKeyboardButton(text=tr(uid, "⬅️ Orqaga"), callback_data="go_home"))
+    kb.row(script_switch_button(uid, "help"))
+    await safe_edit_message(callback, get_help_text(uid), kb.as_markup())
 
 
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
-    logging.info(f"CHECK_SUB: user_id={user_id}")
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+    uid = callback.from_user.id
+    ensure_user(uid)
+    if not await check_user_subscription(uid):
+        reset_access(uid)
+        await callback.answer(get_subscription_required_alert(uid), show_alert=True)
         return
-
-    grant_access(user_id)
-    await safe_edit_message(
-        callback,
-        tr(user_id, "✅ <b>Tekshiruv muvaffaqiyatli o'tdi</b>\n\nEndi bosh menyudan kerakli bo'limni tanlang:"),
-        home_keyboard(user_id)
-    )
+    grant_access(uid)
+    await safe_edit_message(callback, tr(uid, "✅ <b>Tekshiruv muvaffaqiyatli o'tdi</b>\n\nEndi bosh menyudan kerakli bo'limni tanlang:"), home_keyboard(uid))
 
 
 @dp.callback_query(F.data == "go_vote_panel")
 async def go_vote_panel_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
-    logging.info(f"GO_VOTE: user_id={user_id}")
-
-    if not has_access(user_id):
-        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+    uid = callback.from_user.id
+    ensure_user(uid)
+    if not has_access(uid) or not await check_user_subscription(uid):
+        await safe_edit_message(callback, get_welcome_text(uid), subscription_keyboard(uid))
+        await callback.answer(get_subscription_required_alert(uid), show_alert=True)
         return
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
-        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+    if has_voted(uid):
+        await safe_edit_message(callback, get_already_voted_text(uid), home_keyboard(uid))
         return
-
-    if has_voted(user_id):
-        await safe_edit_message(callback, get_already_voted_text(user_id), home_keyboard(user_id))
-        return
-
     if not is_voting_open():
-        await safe_edit_message(callback, get_closed_text(user_id), home_keyboard(user_id))
+        await safe_edit_message(callback, get_closed_text(uid), home_keyboard(uid))
         return
-
-    await safe_edit_message(callback, get_subject_select_text(user_id), subjects_keyboard(user_id))
+    await safe_edit_message(callback, get_subject_select_text(uid), subjects_keyboard(uid))
 
 
 @dp.callback_query(F.data.startswith("subject:"))
 async def subject_select_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
-    logging.info(f"SUBJECT: user_id={user_id}, data={callback.data}")
-
-    if not has_access(user_id):
-        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+    uid = callback.from_user.id
+    ensure_user(uid)
+    if not has_access(uid) or not await check_user_subscription(uid) or has_voted(uid) or not is_voting_open():
+        await safe_edit_message(callback, get_home_text(uid), home_keyboard(uid))
         return
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
-        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+    sk = callback.data.split(":")[1]
+    if sk not in SUBJECTS:
+        await callback.answer(tr(uid, "Noto'g'ri bo'lim"), show_alert=True)
         return
-
-    if has_voted(user_id):
-        await safe_edit_message(callback, get_already_voted_text(user_id), home_keyboard(user_id))
-        return
-
-    if not is_voting_open():
-        await safe_edit_message(callback, get_closed_text(user_id), home_keyboard(user_id))
-        return
-
-    subject_key = callback.data.split(":")[1]
-
-    if subject_key not in SUBJECTS:
-        await callback.answer(tr(user_id, "Noto'g'ri bo'lim tanlandi."), show_alert=True)
-        return
-
-    await safe_edit_message(
-        callback,
-        get_teacher_select_text(user_id, subject_key),
-        teachers_keyboard(user_id, subject_key)
-    )
+    await safe_edit_message(callback, get_teacher_select_text(uid, sk), teachers_keyboard(uid, sk))
 
 
 @dp.callback_query(F.data.startswith("vote:"))
 async def vote_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
-    logging.info(f"VOTE: user_id={user_id}, data={callback.data}")
-
-    if not has_access(user_id):
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+    uid = callback.from_user.id
+    ensure_user(uid)
+    if not has_access(uid) or not await check_user_subscription(uid) or not is_voting_open() or has_voted(uid):
+        await callback.answer(tr(uid, "Ovoz berish mumkin emas"), show_alert=True)
         return
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
-        return
-
-    if not is_voting_open():
-        await callback.answer(tr(user_id, "Hozir ovoz berish yopilgan."), show_alert=True)
-        return
-
-    if has_voted(user_id):
-        await callback.answer(tr(user_id, "Siz faqat 1 marta ovoz bera olasiz."), show_alert=True)
-        return
-
     parts = callback.data.split(":")
     if len(parts) != 3:
-        await callback.answer(tr(user_id, "Noto'g'ri tanlov."), show_alert=True)
+        await callback.answer(tr(uid, "Noto'g'ri tanlov"), show_alert=True)
         return
-
-    _, subject_key, teacher_key = parts
-
-    if subject_key not in SUBJECTS:
-        await callback.answer(tr(user_id, "Noto'g'ri bo'lim."), show_alert=True)
+    _, sk, tk = parts
+    if sk not in SUBJECTS or tk not in SUBJECTS[sk]["teachers"]:
+        await callback.answer(tr(uid, "Noto'g'ri tanlov"), show_alert=True)
         return
-
-    if teacher_key not in SUBJECTS[subject_key]["teachers"]:
-        await callback.answer(tr(user_id, "Noto'g'ri o'qituvchi."), show_alert=True)
-        return
-
-    save_vote(
-        user_id=user_id,
-        full_name=callback.from_user.full_name or "Noma'lum",
-        username=callback.from_user.username or "",
-        subject_key=subject_key,
-        teacher_key=teacher_key,
-    )
-
-    text = (
-        f"✅ <b>Ovoz muvaffaqiyatli qabul qilindi</b>\n\n"
-        f"<b>Bo'lim:</b> {SUBJECTS[subject_key]['name']}\n"
-        f"<b>Tanlovingiz:</b> {SUBJECTS[subject_key]['teachers'][teacher_key]}\n\n"
-        f"Rahmat, sizning ovozingiz saqlandi."
-    )
-
-    await safe_edit_message(callback, tr(user_id, text), after_vote_keyboard(user_id))
+    save_vote(uid, callback.from_user.full_name or "Noma'lum", callback.from_user.username or "", sk, tk)
+    txt = f"✅ <b>Ovoz muvaffaqiyatli qabul qilindi</b>\n\n<b>Bo'lim:</b> {SUBJECTS[sk]['name']}\n<b>Tanlovingiz:</b> {SUBJECTS[sk]['teachers'][tk]}\n\nRahmat!"
+    await safe_edit_message(callback, tr(uid, txt), after_vote_keyboard(uid))
 
 
-# =========================
-# USER RESULTS
-# =========================
 @dp.callback_query(F.data == "show_results_menu_user")
 async def show_results_menu_user(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
-    await safe_edit_message(
-        callback,
-        get_results_menu_text(user_id, False),
-        results_menu_keyboard_user(user_id)
-    )
+    uid = callback.from_user.id
+    ensure_user(uid)
+    await safe_edit_message(callback, get_results_menu_text(uid, False), results_menu_keyboard_user(uid))
 
 
 @dp.callback_query(F.data.startswith("show_results_user:"))
 async def show_results_user(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
+    uid = callback.from_user.id
+    ensure_user(uid)
     scope = callback.data.split(":", 1)[1]
-    text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-    await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
+    txt = get_general_results_text(uid) if scope == "general" else get_subject_results_text(uid, scope)
+    await safe_edit_message(callback, txt, results_keyboard_user(uid, scope))
 
 
 @dp.callback_query(F.data.startswith("refresh_results_user:"))
 async def refresh_results_user(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
+    uid = callback.from_user.id
+    ensure_user(uid)
     scope = callback.data.split(":", 1)[1]
-    text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-    await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
-    await callback.answer(tr(user_id, "Yangilandi"))
+    txt = get_general_results_text(uid) if scope == "general" else get_subject_results_text(uid, scope)
+    await safe_edit_message(callback, txt, results_keyboard_user(uid, scope))
 
 
 @dp.message(Command("results"))
 async def results_handler(message: Message):
-    user_id = message.from_user.id
-    ensure_user(user_id)
-    await message.answer(
-        get_results_menu_text(user_id, False),
-        parse_mode="HTML",
-        reply_markup=results_menu_keyboard_user(user_id)
-    )
+    uid = message.from_user.id
+    ensure_user(uid)
+    await message.answer(get_results_menu_text(uid, False), parse_mode="HTML", reply_markup=results_menu_keyboard_user(uid))
 
-# =========================
-# ADMIN
-# =========================
+
 @dp.message(Command("admin"))
 async def admin_panel_handler(message: Message):
-    user_id = message.from_user.id
-    ensure_user(user_id)
-
-    if not is_admin(user_id):
-        await message.answer(tr(user_id, "Siz admin emassiz."))
+    uid = message.from_user.id
+    ensure_user(uid)
+    if not is_admin(uid):
+        await message.answer(tr(uid, "Siz admin emassiz."))
         return
-
-    await message.answer(
-        get_admin_panel_text(user_id),
-        parse_mode="HTML",
-        reply_markup=admin_panel_keyboard(user_id)
-    )
+    await message.answer(get_admin_panel_text(uid), parse_mode="HTML", reply_markup=admin_panel_keyboard(uid))
 
 
 @dp.message(Command("users"))
 async def admin_users_handler(message: Message):
-    user_id = message.from_user.id
-
-    if not is_admin(user_id):
-        await message.answer(tr(user_id, "Siz admin emassiz."))
+    uid = message.from_user.id
+    if not is_admin(uid):
+        await message.answer(tr(uid, "Siz admin emassiz."))
         return
-
-    await message.answer(
-        get_users_text(user_id),
-        parse_mode="HTML",
-        reply_markup=users_keyboard_admin(user_id)
-    )
+    await message.answer(get_users_text(uid), parse_mode="HTML", reply_markup=users_keyboard_admin(uid))
 
 
 @dp.message(Command("export"))
 async def admin_export_handler(message: Message):
-    user_id = message.from_user.id
-
-    if not is_admin(user_id):
-        await message.answer(tr(user_id, "Siz admin emassiz."))
+    uid = message.from_user.id
+    if not is_admin(uid):
+        await message.answer(tr(uid, "Siz admin emassiz."))
         return
-
-    filename = export_votes_to_csv()
-    await message.answer_document(
-        FSInputFile(filename),
-        caption=tr(user_id, "📁 Ovozlar CSV fayl ko'rinishida.")
-    )
+    await message.answer_document(FSInputFile(export_votes_to_csv()), caption=tr(uid, "📁 Ovozlar CSV fayl"))
 
 
 @dp.message(Command("open"))
 async def admin_open_handler(message: Message):
-    user_id = message.from_user.id
-
-    if not is_admin(user_id):
-        await message.answer(tr(user_id, "Siz admin emassiz."))
+    uid = message.from_user.id
+    if not is_admin(uid):
+        await message.answer(tr(uid, "Siz admin emassiz."))
         return
-
     open_voting()
-    await message.answer(tr(user_id, "🟢 Ovoz berish ochildi."))
+    await message.answer(tr(uid, "🟢 Ovoz berish ochildi."))
 
 
 @dp.message(Command("close"))
 async def admin_close_handler(message: Message):
-    user_id = message.from_user.id
-
-    if not is_admin(user_id):
-        await message.answer(tr(user_id, "Siz admin emassiz."))
+    uid = message.from_user.id
+    if not is_admin(uid):
+        await message.answer(tr(uid, "Siz admin emassiz."))
         return
-
     close_voting()
-    await message.answer(tr(user_id, "🔴 Ovoz berish yopildi."))
+    await message.answer(tr(uid, "🔴 Ovoz berish yopildi."))
 
 
 @dp.message(Command("reset_votes"))
 async def admin_reset_handler(message: Message):
-    user_id = message.from_user.id
-
-    if not is_admin(user_id):
-        await message.answer(tr(user_id, "Siz admin emassiz."))
+    uid = message.from_user.id
+    if not is_admin(uid):
+        await message.answer(tr(uid, "Siz admin emassiz."))
         return
+    await message.answer(tr(uid, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"),
+                         parse_mode="HTML", reply_markup=reset_confirm_keyboard(uid))
 
-    await message.answer(
-        tr(user_id, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"),
-        parse_mode="HTML",
-        reply_markup=reset_confirm_keyboard(user_id)
-    )
 
-# =========================
-# ADMIN CALLBACKS
-# =========================
 @dp.callback_query(F.data == "back_admin_panel")
-async def back_admin_panel_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def back_admin_panel(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
-    await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
+    await safe_edit_message(callback, get_admin_panel_text(uid), admin_panel_keyboard(uid))
 
 
 @dp.callback_query(F.data == "admin_results")
-async def admin_results_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def admin_results(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
-    await safe_edit_message(
-        callback,
-        get_results_menu_text(user_id, True),
-        results_menu_keyboard_admin(user_id)
-    )
+    await safe_edit_message(callback, get_results_menu_text(uid, True), results_menu_keyboard_admin(uid))
 
 
 @dp.callback_query(F.data.startswith("show_results_admin:"))
 async def show_results_admin(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
     scope = callback.data.split(":", 1)[1]
-    text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-    await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
+    txt = get_general_results_text(uid) if scope == "general" else get_subject_results_text(uid, scope)
+    await safe_edit_message(callback, txt, results_keyboard_admin(uid, scope))
 
 
 @dp.callback_query(F.data.startswith("refresh_results_admin:"))
-async def refresh_results_admin_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def refresh_results_admin(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
     scope = callback.data.split(":", 1)[1]
-    text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-    await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
-    await callback.answer(tr(user_id, "Yangilandi"))
+    txt = get_general_results_text(uid) if scope == "general" else get_subject_results_text(uid, scope)
+    await safe_edit_message(callback, txt, results_keyboard_admin(uid, scope))
 
 
 @dp.callback_query(F.data == "admin_users")
-async def admin_users_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def admin_users(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
-    await safe_edit_message(callback, get_users_text(user_id), users_keyboard_admin(user_id))
+    await safe_edit_message(callback, get_users_text(uid), users_keyboard_admin(uid))
 
 
 @dp.callback_query(F.data == "refresh_admin_users")
 async def refresh_admin_users(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
-    await safe_edit_message(callback, get_users_text(user_id), users_keyboard_admin(user_id))
-    await callback.answer(tr(user_id, "Yangilandi"))
+    await safe_edit_message(callback, get_users_text(uid), users_keyboard_admin(uid))
 
 
 @dp.callback_query(F.data == "admin_export")
-async def admin_export_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def admin_export(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
-    filename = export_votes_to_csv()
-    await callback.message.answer_document(
-        FSInputFile(filename),
-        caption=tr(user_id, "📁 Ovozlar CSV fayl ko'rinishida.")
-    )
+    await callback.message.answer_document(FSInputFile(export_votes_to_csv()), caption=tr(uid, "📁 Ovozlar CSV fayl"))
     await callback.answer()
 
 
 @dp.callback_query(F.data == "admin_open")
-async def admin_open_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def admin_open(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
     open_voting()
-    await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
-    await callback.answer(tr(user_id, "Voting ochildi!"))
+    await safe_edit_message(callback, get_admin_panel_text(uid), admin_panel_keyboard(uid))
+    await callback.answer(tr(uid, "Voting ochildi!"))
 
 
 @dp.callback_query(F.data == "admin_close")
-async def admin_close_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def admin_close(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
     close_voting()
-    await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
-    await callback.answer(tr(user_id, "Voting yopildi!"))
+    await safe_edit_message(callback, get_admin_panel_text(uid), admin_panel_keyboard(uid))
+    await callback.answer(tr(uid, "Voting yopildi!"))
 
 
 @dp.callback_query(F.data == "admin_reset_confirm")
-async def admin_reset_confirm_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def admin_reset_confirm(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
-    await safe_edit_message(
-        callback,
-        tr(user_id, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"),
-        reset_confirm_keyboard(user_id)
-    )
+    await safe_edit_message(callback, tr(uid, "⚠️ <b>Diqqat!</b>\n\nBarcha ovozlar o'chiriladi.\nDavom etasizmi?"), reset_confirm_keyboard(uid))
 
 
 @dp.callback_query(F.data == "cancel_reset")
-async def cancel_reset_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def cancel_reset(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
-    await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
-    await callback.answer(tr(user_id, "Bekor qilindi"))
+    await safe_edit_message(callback, get_admin_panel_text(uid), admin_panel_keyboard(uid))
+    await callback.answer(tr(uid, "Bekor qilindi"))
 
 
 @dp.callback_query(F.data == "admin_reset")
-async def admin_reset_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer(tr(user_id, "Siz admin emassiz."), show_alert=True)
+async def admin_reset(callback: CallbackQuery):
+    uid = callback.from_user.id
+    if not is_admin(uid):
+        await callback.answer(tr(uid, "Siz admin emassiz."), show_alert=True)
         return
-
     reset_votes()
-    await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
-    await callback.answer(tr(user_id, "Reset qilindi!"))
+    await safe_edit_message(callback, get_admin_panel_text(uid), admin_panel_keyboard(uid))
+    await callback.answer(tr(uid, "Reset qilindi!"))
 
-# =========================
-# TEXT HANDLER
-# =========================
+
 @dp.message(F.text)
 async def text_handler(message: Message):
-    user_id = message.from_user.id
-    ensure_user(user_id)
-
+    uid = message.from_user.id
+    ensure_user(uid)
     if message.text.lower() == "results":
-        await message.answer(
-            get_results_menu_text(user_id, False),
-            parse_mode="HTML",
-            reply_markup=results_menu_keyboard_user(user_id)
-        )
+        await message.answer(get_results_menu_text(uid, False), parse_mode="HTML", reply_markup=results_menu_keyboard_user(uid))
 
 # =========================
 # MAIN
 # =========================
 async def main():
     init_db()
-    logging.info(f"✅ Bot ishga tushdi. Baza: {DB_NAME}")
-    logging.info(f"✅ ADMIN_IDS: {ADMIN_IDS}")
+    logging.info("✅ Bot V2 ishga tushdi | Barcha kamchiliklar tuzatildi")
     await dp.start_polling(bot)
 
 

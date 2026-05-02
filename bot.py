@@ -1020,18 +1020,44 @@ async def go_home_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
     ensure_user(user_id)
 
-    if require_access_only(user_id):
+    # Ichki menyulardan qaytganda avval DBdagi access holatiga ishonamiz.
+    # Agar access bor bo‘lsa, Telegram kanalni qayta tekshirmaymiz.
+    if has_access(user_id):
+        await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+        await callback.answer()
+        return
+
+    # Faqat access yo‘q bo‘lsa, tekshirish tugmasini ko‘rsatamiz.
+    await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "back_from_help")
+async def back_from_help_handler(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    ensure_user(user_id)
+
+    # Yordamdan qaytishda faqat access_granted tekshiriladi.
+    # Telegram API qayta chaqirilmaydi va reset_access ishlatilmaydi.
+    if has_access(user_id):
         await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
     else:
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+
     await callback.answer()
+
 
 
 @dp.callback_query(F.data == "help_info")
 async def help_info_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    ensure_user(user_id)
+
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home"))
+    # Yordamdan qaytish uchun alohida callback.
+    # Bu foydalanuvchini tasodifan obuna oynasiga qaytarib yubormaydi.
+    kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_from_help"))
+
     await safe_edit_message(callback, get_help_text(user_id), kb.as_markup())
     await callback.answer()
 

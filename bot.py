@@ -135,6 +135,23 @@ SUBJECT_KEYS = list(SUBJECTS.keys())
 SUBJECT_ALIAS = {key: f"s{i + 1}" for i, key in enumerate(SUBJECT_KEYS)}
 ALIAS_SUBJECT = {alias: key for key, alias in SUBJECT_ALIAS.items()}
 
+def get_channel_ref() -> str:
+    """
+    Telegram obunasini tekshirish uchun kanal reference.
+    ENV orqali CHANNEL_ID berilsa, masalan: -1001234567890, shu ishlatiladi.
+    Aks holda CHANNEL_USERNAME ishlatiladi.
+    """
+    channel_id = os.getenv("CHANNEL_ID", "").strip()
+    if channel_id:
+        return int(channel_id) if channel_id.lstrip("-").isdigit() else channel_id
+
+    value = (CHANNEL_USERNAME or "").strip()
+    value = value.replace("https://t.me/", "").replace("http://t.me/", "")
+    value = value.split("/")[0].strip()
+    if not value.startswith("@"):
+        value = "@" + value
+    return value
+
 logging.basicConfig(level=logging.INFO)
 
 if not BOT_TOKEN or BOT_TOKEN == "BOT_TOKENNI_ENVGA_QOYING":
@@ -728,16 +745,24 @@ def export_rating_stats(scope: str = "general") -> str:
 
 
 async def check_user_subscription(user_id: int) -> bool:
+    """
+    Faqat Telegram kanal obunasini tekshiradi.
+    Instagram/Facebook obunasini Telegram Bot API orqali tekshirib bo'lmaydi.
+    """
     try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in {
-            ChatMemberStatus.CREATOR,
-            ChatMemberStatus.ADMINISTRATOR,
-            ChatMemberStatus.MEMBER,
-            ChatMemberStatus.RESTRICTED,
-        }
+        member = await bot.get_chat_member(get_channel_ref(), user_id)
+        status = member.status
+
+        if status in {ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.MEMBER}:
+            return True
+
+        if status == ChatMemberStatus.RESTRICTED:
+            return bool(getattr(member, "is_member", False))
+
+        return False
+
     except Exception as e:
-        logging.error(f"Obunani tekshirishda xatolik: {e}")
+        logging.exception(f"Obunani tekshirishda xatolik. Kanal: {get_channel_ref()}, user_id: {user_id}. Xato: {e}")
         return False
 
 
@@ -1070,6 +1095,28 @@ def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"))
     return kb.as_markup()
 
+async def require_verified_access(callback: CallbackQuery) -> bool:
+    """
+    Himoyalangan bo'limlar uchun yakuniy tekshiruv.
+    Eski access_granted noto'g'ri saqlangan bo'lsa ham shu yerda ushlanadi.
+    """
+    user_id = callback.from_user.id
+    ensure_user(user_id)
+
+    if not has_access(user_id):
+        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+        return False
+
+    if not await check_user_subscription(user_id):
+        reset_access(user_id)
+        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+        return False
+
+    return True
+
+
 # =========================
 # RENDER HELPERS
 # =========================
@@ -1145,12 +1192,13 @@ async def start_handler(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id)
 
-    # Obuna faqat "✅ Tekshirish" tugmasida tekshiriladi.
-    # Shuning uchun /start bosilganda bot o'zidan-o'zi alert chiqarmaydi.
-    if has_access(user_id):
+    # Eski saqlangan access bor bo'lsa ham Telegram obunasi qayta tekshiriladi.
+    if has_access(user_id) and await check_user_subscription(user_id):
         await message.answer(get_home_text(user_id), parse_mode="HTML", reply_markup=home_keyboard(user_id))
-    else:
-        await message.answer(get_welcome_text(user_id), parse_mode="HTML", reply_markup=subscription_keyboard(user_id))
+        return
+
+    reset_access(user_id)
+    await message.answer(get_welcome_text(user_id), parse_mode="HTML", reply_markup=subscription_keyboard(user_id))
 
 
 @dp.callback_query(F.data == "noop")
@@ -1261,6 +1309,8 @@ async def subject_select_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("rsub:"))
 async def rating_subject_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    if not await require_verified_access(callback):
+        return
     alias = callback.data.split(":", 1)[1]
     subject_key = resolve_subject(alias)
 
@@ -1275,6 +1325,8 @@ async def rating_subject_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("rteach:"))
 async def rating_teacher_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    if not await require_verified_access(callback):
+        return
     _, alias, teacher_key = callback.data.split(":")
     subject_key = resolve_subject(alias)
 
@@ -1289,6 +1341,8 @@ async def rating_teacher_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("rate:"))
 async def rate_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    if not await require_verified_access(callback):
+        return
     parts = callback.data.split(":")
     if len(parts) != 4:
         await callback.answer(tr(user_id, "Noto'g'ri baho."), show_alert=True)
@@ -1440,6 +1494,38 @@ async def admin_export_ratings_handler(message: Message):
     filename = export_rating_stats("general")
     await message.answer_document(FSInputFile(filename), caption=tr(user_id, "📁 Baholash statistikasi Excel fayl ko'rinishida."))
 
+
+
+@dp.message(Command("check_channel"))
+async def check_channel_command(message: Message):
+    user_id = message.from_user.id
+    if not is_admin(user_id):
+        await message.answer(tr(user_id, "Siz admin emassiz."))
+        return
+
+    try:
+        chat = await bot.get_chat(get_channel_ref())
+        me = await bot.get_me()
+        await message.answer(
+            tr(
+                user_id,
+                f"✅ Kanal sozlamasi ishlayapti.\n\n"
+                f"Kanal: {getattr(chat, 'title', get_channel_ref())}\n"
+                f"Bot: @{me.username}\n"
+                f"Tekshiruv: get_chat OK"
+            )
+        )
+    except Exception as e:
+        logging.exception(e)
+        await message.answer(
+            tr(
+                user_id,
+                "❌ Kanal tekshiruvida xatolik.\n\n"
+                "1) Botni Telegram kanalga admin qiling.\n"
+                "2) CHANNEL_USERNAME=@QASHQADARYOPMMrasmiy ekanini tekshiring.\n"
+                "3) Xususiy kanal bo'lsa CHANNEL_ID=-100... qilib envga qo'ying."
+            )
+        )
 
 @dp.message(Command("open"))
 async def admin_open_handler(message: Message):

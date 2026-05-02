@@ -785,19 +785,29 @@ def rate_keyboard(user_id: int, subject_key: str, teacher_key: str) -> InlineKey
 
 def results_menu_keyboard_user(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
+
+    # User uchun "Umumiy" olib tashlandi.
+    # Umumiy natijalar faqat admin panelda qoladi.
     for subject_key, subject_data in SUBJECTS.items():
         kb.row(InlineKeyboardButton(text=subject_data["name"], callback_data=f"show_results_user:{subject_key}"))
+
     kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home"))
     return kb.as_markup()
 
 
+
 def results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
+
+    # Umumiy natijalar faqat admin panelda.
     kb.row(InlineKeyboardButton(text="📊 Umumiy", callback_data="show_results_admin:general"))
+
     for subject_key, subject_data in SUBJECTS.items():
         kb.row(InlineKeyboardButton(text=subject_data["name"], callback_data=f"show_results_admin:{subject_key}"))
+
     kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
+
 
 
 def rating_results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
@@ -1190,6 +1200,7 @@ async def show_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
     scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
 
+    # User uchun "general" yopiq. Faqat kafedralar ochiladi.
     if scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
@@ -1206,6 +1217,7 @@ async def refresh_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
     scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
 
+    # User uchun "general" yopiq. Faqat kafedralar yangilanadi.
     if scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
@@ -1247,6 +1259,8 @@ async def show_results_admin(callback: CallbackQuery):
         return
 
     scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
+
+    # Admin uchun "general" ham, kafedralar ham ishlaydi.
     if scope != "general" and scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
@@ -1267,6 +1281,8 @@ async def refresh_results_admin_handler(callback: CallbackQuery):
         return
 
     scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
+
+    # Admin uchun "general" ham, kafedralar ham yangilanadi.
     if scope != "general" and scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return

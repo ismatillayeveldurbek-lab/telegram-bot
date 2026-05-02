@@ -808,10 +808,14 @@ def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
 async def start_handler(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id)
+    if has_access(user_id):
+        await message.answer(get_home_text(user_id), parse_mode="HTML", reply_markup=home_keyboard(user_id))
+        return
+
     if not await check_user_subscription(user_id):
-        reset_access(user_id)
         await message.answer(get_welcome_text(user_id), parse_mode="HTML", reply_markup=subscription_keyboard(user_id))
         return
+
     grant_access(user_id)
     await message.answer(get_home_text(user_id), parse_mode="HTML", reply_markup=home_keyboard(user_id))
 
@@ -923,8 +927,7 @@ async def check_subscription_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "go_vote_panel")
 async def go_vote_panel_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id) or not await check_user_subscription(user_id):
-        reset_access(user_id)
+    if not has_access(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
@@ -942,8 +945,7 @@ async def go_vote_panel_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("subject:"))
 async def subject_select_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id) or not await check_user_subscription(user_id):
-        reset_access(user_id)
+    if not has_access(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
@@ -965,8 +967,7 @@ async def subject_select_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("vote:"))
 async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id) or not await check_user_subscription(user_id):
-        reset_access(user_id)
+    if not has_access(user_id):
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
     if not is_voting_open():
@@ -1000,8 +1001,7 @@ async def vote_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "go_rating_panel")
 async def go_rating_panel_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id) or not await check_user_subscription(user_id):
-        reset_access(user_id)
+    if not has_access(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
@@ -1036,8 +1036,7 @@ async def rating_teacher_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("rate:"))
 async def rate_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id) or not await check_user_subscription(user_id):
-        reset_access(user_id)
+    if not has_access(user_id):
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
     parts = callback.data.split(":")

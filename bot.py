@@ -544,22 +544,25 @@ def get_rating_stats_text(user_id: int, subject_key: str | None = None) -> str:
 
 def get_top_ratings_text(user_id: int) -> str:
     rows = [r for r in rating_rows() if r["total"] > 0]
+
     def line_items(items):
         if not items:
             return "Ma’lumot yo‘q"
-        return "\n".join([f"{i}. {r['teacher_name']} — {r['subject_name']} | 👍 {r['like_percent']:.1f}% / 👎 {r['dislike_percent']:.1f}% | Jami: {r['total']}" for i, r in enumerate(items, 1)])
+        return "\n".join([
+            f"{i}. {r['teacher_name']} — {r['subject_name']} | 👍 {r['like_percent']:.1f}% | Jami: {r['total']}"
+            for i, r in enumerate(items, 1)
+        ])
+
     high_like = sorted(rows, key=lambda r: (r["like_percent"], r["total"]), reverse=True)[:10]
     low_like = sorted(rows, key=lambda r: (r["like_percent"], -r["total"]))[:10]
-    high_dislike = sorted(rows, key=lambda r: (r["dislike_percent"], r["total"]), reverse=True)[:10]
-    low_dislike = sorted(rows, key=lambda r: (r["dislike_percent"], -r["total"]))[:10]
+
     text = (
         "🏆 <b>TOP reytinglar</b>\n\n"
         "🔝 <b>TOP 10 eng baland like nisbati</b>\n" + line_items(high_like) + "\n\n"
-        "🔻 <b>TOP 10 eng past like nisbati</b>\n" + line_items(low_like) + "\n\n"
-        "🔝 <b>TOP 10 eng baland dislike nisbati</b>\n" + line_items(high_dislike) + "\n\n"
-        "🔻 <b>TOP 10 eng past dislike nisbati</b>\n" + line_items(low_dislike)
+        "🔻 <b>TOP 10 eng past like nisbati</b>\n" + line_items(low_like)
     )
     return tr(user_id, text[:4000] + ("\n\n... qisqartirildi" if len(text) > 4000 else ""))
+
 
 def get_users_text(user_id: int) -> str:
     cursor.execute("SELECT user_id, full_name, username, subject_key, teacher_key, voted_at FROM votes ORDER BY voted_at DESC")
@@ -1249,6 +1252,35 @@ async def admin_results_callback(callback: CallbackQuery):
         return
     await safe_edit_message(callback, get_results_menu_text(user_id, True), results_menu_keyboard_admin(user_id))
     await callback.answer()
+
+
+@dp.callback_query(F.data == "show_results_admin:general")
+async def show_results_admin_general(callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    if not is_admin(user_id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    async with db_lock:
+        text = get_general_results_text(user_id)
+
+    await safe_edit_message(callback, text, results_keyboard_admin(user_id, "general"))
+    await callback.answer()
+
+@dp.callback_query(F.data == "refresh_results_admin:general")
+async def refresh_results_admin_general(callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    if not is_admin(user_id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    async with db_lock:
+        text = get_general_results_text(user_id)
+
+    await safe_edit_message(callback, text, results_keyboard_admin(user_id, "general"))
+    await callback.answer("Yangilandi")
 
 @dp.callback_query(F.data.startswith("show_results_admin:"))
 async def show_results_admin(callback: CallbackQuery):

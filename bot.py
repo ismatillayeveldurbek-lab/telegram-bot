@@ -785,7 +785,6 @@ def rate_keyboard(user_id: int, subject_key: str, teacher_key: str) -> InlineKey
 
 def results_menu_keyboard_user(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="📊 Umumiy", callback_data="show_results_user:general"))
     for subject_key, subject_data in SUBJECTS.items():
         kb.row(InlineKeyboardButton(text=subject_data["name"], callback_data=f"show_results_user:{subject_key}"))
     kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home"))
@@ -1191,12 +1190,12 @@ async def show_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
     scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
 
-    if scope != "general" and scope not in SUBJECTS:
+    if scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
 
     async with db_lock:
-        text = get_results_text_by_scope(user_id, scope)
+        text = get_subject_results_text(user_id, scope)
 
     await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
     await callback.answer()
@@ -1207,12 +1206,12 @@ async def refresh_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
     scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
 
-    if scope != "general" and scope not in SUBJECTS:
+    if scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
 
     async with db_lock:
-        text = get_results_text_by_scope(user_id, scope)
+        text = get_subject_results_text(user_id, scope)
 
     await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
     await callback.answer("Yangilandi")
@@ -1253,7 +1252,7 @@ async def show_results_admin(callback: CallbackQuery):
         return
 
     async with db_lock:
-        text = get_results_text_by_scope(user_id, scope)
+        text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
 
     await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
     await callback.answer()
@@ -1273,7 +1272,7 @@ async def refresh_results_admin_handler(callback: CallbackQuery):
         return
 
     async with db_lock:
-        text = get_results_text_by_scope(user_id, scope)
+        text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
 
     await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
     await callback.answer("Yangilandi")

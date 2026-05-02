@@ -146,6 +146,7 @@ dp = Dispatcher()
 
 conn = sqlite3.connect(DB_NAME, check_same_thread=False)
 cursor = conn.cursor()
+db_lock = asyncio.Lock()
 
 # =========================
 # LOTIN ONLY
@@ -456,11 +457,20 @@ def get_admin_panel_text(user_id: int) -> str:
     return tr(user_id, f"🎛 <b>Admin panel</b>\n\nVoting holati: {status_text}\nJami ovozlar: {get_total_votes()}")
 
 def get_general_results_text(user_id: int) -> str:
-    total_votes = get_total_votes()
+    cursor.execute("""
+        SELECT subject_key, teacher_key, COUNT(*)
+        FROM votes
+        GROUP BY subject_key, teacher_key
+    """)
+    counts = {}
+    for subject_key, teacher_key, count in cursor.fetchall():
+        counts[(normalize_subject_key(subject_key), teacher_key)] = count
+
+    total_votes = sum(counts.values())
     lines = ["📊 <b>Umumiy natijalar</b>\n"]
 
     for subject_key, teacher_key, teacher_name in get_all_teachers_flat():
-        count = get_vote_count(subject_key, teacher_key)
+        count = counts.get((subject_key, teacher_key), 0)
         percent = get_vote_percent(count, total_votes)
         lines.append(
             f"<b>{teacher_name}</b> — {get_subject_name(subject_key)}\n"
@@ -481,13 +491,22 @@ def get_subject_results_text(user_id: int, subject_key: str) -> str:
     if subject_key not in SUBJECTS:
         return tr(user_id, "Noto‘g‘ri kafedra.")
 
-    total_votes = get_total_votes()
-    subject_total = get_total_votes(subject_key)
+    cursor.execute("""
+        SELECT teacher_key, COUNT(*)
+        FROM votes
+        WHERE subject_key = ?
+        GROUP BY teacher_key
+    """, (subject_key,))
+    subject_counts = {teacher_key: count for teacher_key, count in cursor.fetchall()}
+
+    cursor.execute("SELECT COUNT(*) FROM votes")
+    total_votes = cursor.fetchone()[0]
+    subject_total = sum(subject_counts.values())
 
     lines = [f"📊 <b>{get_subject_name(subject_key)} bo‘yicha natijalar</b>\n"]
 
     for teacher_key, teacher_name in SUBJECTS[subject_key]["teachers"].items():
-        count = get_vote_count(subject_key, teacher_key)
+        count = subject_counts.get(teacher_key, 0)
         percent = get_vote_percent(count, total_votes)
         lines.append(
             f"<b>{teacher_name}</b>\n"
@@ -907,6 +926,28 @@ async def results_handler(message: Message):
     ensure_user(user_id)
     await message.answer(get_results_menu_text(user_id, False), parse_mode="HTML", reply_markup=results_menu_keyboard_user(user_id))
 
+@dp.message(Command("debug_eshnazarova"))
+async def debug_eshnazarova_handler(message: Message):
+    user_id = message.from_user.id
+    if not is_admin(user_id):
+        return
+
+    cursor.execute("""
+        SELECT user_id, full_name, username, subject_key, teacher_key, voted_at
+        FROM votes
+        WHERE teacher_key = 'aif_10'
+        ORDER BY voted_at DESC
+    """)
+    rows = cursor.fetchall()
+    if not rows:
+        await message.answer("Eshnazarova Maziya Allanazarovna uchun bazada ovoz yo‘q.")
+        return
+
+    lines = ["Eshnazarova Maziya Allanazarovna uchun bazadagi ovozlar:"]
+    for uid, full_name, username, subject_key, teacher_key, voted_at in rows:
+        lines.append(f"ID: {uid} | {full_name or ''} | @{username or ''} | {subject_key}/{teacher_key} | {voted_at}")
+    await message.answer("\n".join(lines[:50]))
+
 @dp.message(Command("admin"))
 async def admin_panel_handler(message: Message):
     user_id = message.from_user.id
@@ -1148,36 +1189,32 @@ async def show_results_menu_user(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("show_results_user:"))
 async def show_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
-    scope = callback.data.split(":", 1)[1].strip()
-    scope = normalize_subject_key(scope)
+    scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
 
     if scope != "general" and scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
 
-    await safe_edit_message(
-        callback,
-        get_results_text_by_scope(user_id, scope),
-        results_keyboard_user(user_id, scope)
-    )
+    async with db_lock:
+        text = get_results_text_by_scope(user_id, scope)
+
+    await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
     await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("refresh_results_user:"))
 async def refresh_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
-    scope = callback.data.split(":", 1)[1].strip()
-    scope = normalize_subject_key(scope)
+    scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
 
     if scope != "general" and scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
 
-    await safe_edit_message(
-        callback,
-        get_results_text_by_scope(user_id, scope),
-        results_keyboard_user(user_id, scope)
-    )
+    async with db_lock:
+        text = get_results_text_by_scope(user_id, scope)
+
+    await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
     await callback.answer("Yangilandi")
 
 
@@ -1210,18 +1247,15 @@ async def show_results_admin(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    scope = callback.data.split(":", 1)[1].strip()
-    scope = normalize_subject_key(scope)
-
+    scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
     if scope != "general" and scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
 
-    await safe_edit_message(
-        callback,
-        get_results_text_by_scope(user_id, scope),
-        results_keyboard_admin(user_id, scope)
-    )
+    async with db_lock:
+        text = get_results_text_by_scope(user_id, scope)
+
+    await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
     await callback.answer()
 
 
@@ -1233,18 +1267,15 @@ async def refresh_results_admin_handler(callback: CallbackQuery):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
 
-    scope = callback.data.split(":", 1)[1].strip()
-    scope = normalize_subject_key(scope)
-
+    scope = normalize_subject_key(callback.data.split(":", 1)[1].strip())
     if scope != "general" and scope not in SUBJECTS:
         await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
         return
 
-    await safe_edit_message(
-        callback,
-        get_results_text_by_scope(user_id, scope),
-        results_keyboard_admin(user_id, scope)
-    )
+    async with db_lock:
+        text = get_results_text_by_scope(user_id, scope)
+
+    await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
     await callback.answer("Yangilandi")
 
 

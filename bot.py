@@ -448,7 +448,7 @@ def rating_counts(subject_key: str, teacher_key: str):
 
 
 def get_subscription_required_alert(user_id: int) -> str:
-    return tr(user_id, "Avval Instagram, Facebook va Telegram kanalga obuna bo'ling.")
+    return tr(user_id, "Iltimos, avval Instagram, Facebook va Telegram kanalga obuna bo'ling, keyin ✅ Tekshirish tugmasini bosing.")
 
 
 def get_general_results_text(user_id: int) -> str:
@@ -838,10 +838,10 @@ def get_admin_panel_text(user_id: int) -> str:
 # =========================
 # KLAVIATURALAR
 # =========================
-def script_switch_button(user_id: int) -> InlineKeyboardButton:
+def script_switch_button(user_id: int, page: str = "home") -> InlineKeyboardButton:
     if get_user_script(user_id) == "latin":
-        return InlineKeyboardButton(text="🔤 Krill", callback_data="toggle_script")
-    return InlineKeyboardButton(text="🔤 Lotin", callback_data="toggle_script")
+        return InlineKeyboardButton(text="🔤 Krill", callback_data=f"toggle_script:{page}")
+    return InlineKeyboardButton(text="🔤 Lotin", callback_data=f"toggle_script:{page}")
 
 
 def subscription_keyboard(user_id: int) -> InlineKeyboardMarkup:
@@ -853,7 +853,7 @@ def subscription_keyboard(user_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=tr(user_id, "✅ Tekshirish"), callback_data="check_subscription"),
         InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user")
     )
-    kb.row(script_switch_button(user_id))
+    kb.row(script_switch_button(user_id, "subscription"))
     return kb.as_markup()
 
 
@@ -873,7 +873,7 @@ def home_keyboard(user_id: int) -> InlineKeyboardMarkup:
 
     kb.row(
         InlineKeyboardButton(text=tr(user_id, "ℹ️ Yordam"), callback_data="help_info"),
-        script_switch_button(user_id)
+        script_switch_button(user_id, "home")
     )
     return kb.as_markup()
 
@@ -886,7 +886,7 @@ def subjects_keyboard(user_id: int, mode: str = "vote") -> InlineKeyboardMarkup:
         alias = get_subject_alias(subject_key)
         kb.row(InlineKeyboardButton(text=tr(user_id, f"🏛 {subject_data['name']}"), callback_data=f"{prefix}:{alias}"))
 
-    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"), script_switch_button(user_id))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"), script_switch_button(user_id, f"subjects_{mode}"))
     return kb.as_markup()
 
 
@@ -902,7 +902,7 @@ def teachers_keyboard(user_id: int, subject_key: str) -> InlineKeyboardMarkup:
         kb.row(*row)
 
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Kafedralarga qaytish"), callback_data="go_vote_panel"))
-    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"), script_switch_button(user_id))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"), script_switch_button(user_id, f"teachers_{get_subject_alias(subject_key)}"))
     return kb.as_markup()
 
 
@@ -914,7 +914,7 @@ def rating_teachers_keyboard(user_id: int, subject_key: str) -> InlineKeyboardMa
         kb.row(InlineKeyboardButton(text=tr(user_id, f"⭐ {teacher_name}"), callback_data=f"rteach:{alias}:{teacher_key}"))
 
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Kafedralarga qaytish"), callback_data="go_rating_panel"))
-    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"), script_switch_button(user_id))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"), script_switch_button(user_id, f"rating_teachers_{get_subject_alias(subject_key)}"))
     return kb.as_markup()
 
 
@@ -935,7 +935,7 @@ def results_menu_keyboard_user(user_id: int) -> InlineKeyboardMarkup:
     kb.row(InlineKeyboardButton(text=tr(user_id, "📊 Umumiy ovozlar"), callback_data="ures:general"))
     for subject_key, subject_data in SUBJECTS.items():
         kb.row(InlineKeyboardButton(text=tr(user_id, f"🏛 {subject_data['name']}"), callback_data=f"ures:{get_subject_alias(subject_key)}"))
-    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"), script_switch_button(user_id))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"), script_switch_button(user_id, "user_results_menu"))
     return kb.as_markup()
 
 
@@ -945,7 +945,7 @@ def results_keyboard_user(user_id: int, scope: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=tr(user_id, "🔄 Yangilash"), callback_data=f"uref:{scope}"),
         InlineKeyboardButton(text=tr(user_id, "📂 Bo'limlar"), callback_data="show_results_menu_user")
     )
-    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"), script_switch_button(user_id))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home"), script_switch_button(user_id, f"user_result_{scope}"))
     return kb.as_markup()
 
 
@@ -955,7 +955,7 @@ def results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb.row(InlineKeyboardButton(text=tr(user_id, "⭐ Baholash statistikasi"), callback_data="admin_ratings_menu"))
     for subject_key, subject_data in SUBJECTS.items():
         kb.row(InlineKeyboardButton(text=tr(user_id, f"🏛 {subject_data['name']}"), callback_data=f"ares:{get_subject_alias(subject_key)}"))
-    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"), script_switch_button(user_id))
+    kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"), script_switch_button(user_id, "admin_results_menu"))
     return kb.as_markup()
 
 
@@ -1026,7 +1026,7 @@ def after_vote_keyboard(user_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=tr(user_id, "📊 Natijalar"), callback_data="show_results_menu_user"),
         InlineKeyboardButton(text=tr(user_id, "🏠 Bosh menyu"), callback_data="go_home")
     )
-    kb.row(script_switch_button(user_id))
+    kb.row(script_switch_button(user_id, "after_vote"))
     return kb.as_markup()
 
 
@@ -1049,7 +1049,7 @@ def admin_panel_keyboard(user_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=tr(user_id, "🗑 Reset rating"), callback_data="admin_reset_ratings_confirm")
     )
     kb.row(InlineKeyboardButton(text=tr(user_id, "🔓 Open / 🔒 Close"), callback_data="admin_toggle_voting"))
-    kb.row(script_switch_button(user_id))
+    kb.row(script_switch_button(user_id, "admin_panel"))
     return kb.as_markup()
 
 
@@ -1071,7 +1071,7 @@ def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=tr(user_id, "📁 Excel olish"), callback_data="export_votes:general")
     )
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Admin panel"), callback_data="back_admin_panel"))
-    kb.row(script_switch_button(user_id))
+    kb.row(script_switch_button(user_id, "admin_users"))
     return kb.as_markup()
 
 # =========================
@@ -1122,24 +1122,77 @@ async def start_handler(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id)
 
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
+    # Obuna faqat "✅ Tekshirish" tugmasida tekshiriladi.
+    # Shuning uchun /start bosilganda bot o'zidan-o'zi alert chiqarmaydi.
+    if has_access(user_id):
+        await message.answer(get_home_text(user_id), parse_mode="HTML", reply_markup=home_keyboard(user_id))
+    else:
         await message.answer(get_welcome_text(user_id), parse_mode="HTML", reply_markup=subscription_keyboard(user_id))
-        return
-
-    grant_access(user_id)
-    await message.answer(get_home_text(user_id), parse_mode="HTML", reply_markup=home_keyboard(user_id))
 
 
-@dp.callback_query(F.data == "toggle_script")
+@dp.callback_query(F.data.startswith("toggle_script"))
 async def toggle_script_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+    parts = callback.data.split(":", 1)
+    page = parts[1] if len(parts) > 1 else "home"
+
     current = get_user_script(user_id)
     new_script = "cyrillic" if current == "latin" else "latin"
     set_user_script(user_id, new_script)
 
-    # Hech qaysi boshqa oynaga otmaydi. Faqat global sozlamani o'zgartiradi.
-    await callback.answer(tr(user_id, "Til yozuvi o'zgartirildi. Oynani yangilash uchun bo'lim tugmasini qayta bosing."), show_alert=False)
+    if page == "subscription":
+        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+    elif page == "home":
+        if has_access(user_id):
+            await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+        else:
+            await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+    elif page == "help":
+        kb = InlineKeyboardBuilder()
+        kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
+        kb.row(script_switch_button(user_id, "help"))
+        await safe_edit_message(callback, get_help_text(user_id), kb.as_markup())
+    elif page == "subjects_vote":
+        await safe_edit_message(callback, get_subject_select_text(user_id), subjects_keyboard(user_id, "vote"))
+    elif page == "subjects_rating":
+        await safe_edit_message(callback, get_rating_menu_text(user_id), subjects_keyboard(user_id, "rating"))
+    elif page.startswith("teachers_"):
+        alias = page.replace("teachers_", "", 1)
+        subject_key = resolve_subject(alias)
+        if subject_key:
+            await safe_edit_message(callback, get_teacher_select_text(user_id, subject_key), teachers_keyboard(user_id, subject_key))
+    elif page.startswith("rating_teachers_"):
+        alias = page.replace("rating_teachers_", "", 1)
+        subject_key = resolve_subject(alias)
+        if subject_key:
+            await safe_edit_message(callback, get_teacher_select_text(user_id, subject_key), rating_teachers_keyboard(user_id, subject_key))
+    elif page == "user_results_menu":
+        await safe_edit_message(callback, get_results_menu_text(user_id, False), results_menu_keyboard_user(user_id))
+    elif page.startswith("user_result_"):
+        scope = page.replace("user_result_", "", 1)
+        subject_key = None if scope == "general" else resolve_subject(scope)
+        text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, subject_key)
+        await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
+    elif page == "admin_panel":
+        await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
+    elif page == "admin_results_menu":
+        await safe_edit_message(callback, get_results_menu_text(user_id, True), results_menu_keyboard_admin(user_id))
+    elif page.startswith("admin_result_"):
+        scope = page.replace("admin_result_", "", 1)
+        subject_key = None if scope == "general" else resolve_subject(scope)
+        text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, subject_key)
+        await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
+    elif page == "admin_users":
+        await safe_edit_message(callback, get_users_text(user_id), users_keyboard_admin(user_id))
+    elif page == "after_vote":
+        await safe_edit_message(callback, get_already_voted_text(user_id), home_keyboard(user_id))
+    else:
+        if has_access(user_id):
+            await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+        else:
+            await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+
+    await callback.answer(tr(user_id, "Til yozuvi o'zgartirildi"))
 
 
 # =========================
@@ -1160,7 +1213,7 @@ async def help_info_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=tr(user_id, "⬅️ Orqaga"), callback_data="go_home"))
-    kb.row(script_switch_button(user_id))
+    kb.row(script_switch_button(user_id, "help"))
     await safe_edit_message(callback, get_help_text(user_id), kb.as_markup())
     await callback.answer()
 
@@ -1168,11 +1221,6 @@ async def help_info_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
-        return
 
     grant_access(user_id)
     await safe_edit_message(
@@ -1188,12 +1236,6 @@ async def go_vote_panel_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
 
     if not has_access(user_id):
-        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
-        return
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
@@ -1221,12 +1263,6 @@ async def go_rating_panel_handler(callback: CallbackQuery):
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
-        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
-        return
-
     await safe_edit_message(callback, get_rating_menu_text(user_id), subjects_keyboard(user_id, "rating"))
     await callback.answer()
 
@@ -1242,12 +1278,6 @@ async def subject_select_handler(callback: CallbackQuery):
         return
 
     if not has_access(user_id):
-        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
-        return
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
@@ -1348,11 +1378,6 @@ async def vote_handler(callback: CallbackQuery):
         return
 
     if not has_access(user_id):
-        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
-        return
-
-    if not await check_user_subscription(user_id):
-        reset_access(user_id)
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
 

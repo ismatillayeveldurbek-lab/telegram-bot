@@ -1102,6 +1102,15 @@ def reset_confirm_keyboard(user_id: int, mode: str = "votes") -> InlineKeyboardM
     return kb.as_markup()
 
 
+
+def complaints_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_admin_complaints"),
+        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
+    )
+    return kb.as_markup()
+
 def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_admin_users"), InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))

@@ -586,7 +586,7 @@ def get_complaint_intro_text(user_id: int) -> str:
         user_id,
         "📩 <b>Shikoyat va takliflar</b>\n\n"
         "Shikoyat, taklif yoki murojaatingizni bitta xabar qilib yozing.\n"
-        "foydalanuvchi ma'lumotlari sir tutiladi.\n\n"
+        "Foydalanuvchi ma'lumotlari sir tutiladi.\n\n"
         "Bekor qilish uchun <b>❌ Bekor qilish</b> tugmasini bosing."
     )
 

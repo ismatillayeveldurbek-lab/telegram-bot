@@ -157,6 +157,8 @@ def tr(user_id: int, text: str) -> str:
 # DB
 # =========================
 def normalize_subject_key(subject_key: str) -> str:
+    if subject_key == "general":
+        return "general"
     return OLD_TO_NEW_SUBJECT.get(subject_key, subject_key)
 
 def init_db():
@@ -232,6 +234,10 @@ def has_access(user_id: int) -> bool:
     cursor.execute("SELECT access_granted FROM user_prefs WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     return bool(row[0]) if row else False
+
+def require_access_only(user_id: int) -> bool:
+    """Ichki bo‘limlar uchun: Telegram API qayta tekshirilmaydi, faqat DBdagi tasdiq holati ishlatiladi."""
+    return has_access(user_id)
 
 def grant_access(user_id: int):
     ensure_user(user_id)
@@ -361,6 +367,18 @@ def rating_rows():
         })
     return rows
 
+
+def get_vote_count(subject_key: str, teacher_key: str) -> int:
+    subject_key = normalize_subject_key(subject_key)
+    cursor.execute(
+        "SELECT COUNT(*) FROM votes WHERE subject_key = ? AND teacher_key = ?",
+        (subject_key, teacher_key)
+    )
+    return cursor.fetchone()[0]
+
+def get_vote_percent(count: int, denominator: int) -> float:
+    return (count / denominator * 100) if denominator > 0 else 0.0
+
 def get_subscription_required_alert(user_id: int) -> str:
     return tr(user_id, "Avval Telegram kanalga obuna bo‘ling va ✅ Tekshirish tugmasini bosing.")
 
@@ -440,31 +458,51 @@ def get_admin_panel_text(user_id: int) -> str:
 def get_general_results_text(user_id: int) -> str:
     total_votes = get_total_votes()
     lines = ["📊 <b>Umumiy natijalar</b>\n"]
+
     for subject_key, teacher_key, teacher_name in get_all_teachers_flat():
-        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key = ? AND teacher_key = ?", (subject_key, teacher_key))
-        count = cursor.fetchone()[0]
-        percent = (count / total_votes * 100) if total_votes else 0
-        lines.append(f"<b>{teacher_name}</b> — {get_subject_name(subject_key)}\n<code>{build_progress_bar(percent)}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n")
+        count = get_vote_count(subject_key, teacher_key)
+        percent = get_vote_percent(count, total_votes)
+        lines.append(
+            f"<b>{teacher_name}</b> — {get_subject_name(subject_key)}\n"
+            f"<code>{build_progress_bar(percent)}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n"
+        )
+
     lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
     lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
+
     text = "\n".join(lines)
-    return tr(user_id, text[:4000] + ("\n\n... qisqartirildi" if len(text) > 4000 else ""))
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n... qisqartirildi"
+    return tr(user_id, text)
+
 
 def get_subject_results_text(user_id: int, subject_key: str) -> str:
     subject_key = normalize_subject_key(subject_key)
     if subject_key not in SUBJECTS:
         return tr(user_id, "Noto‘g‘ri kafedra.")
+
+    total_votes = get_total_votes()
     subject_total = get_total_votes(subject_key)
+
     lines = [f"📊 <b>{get_subject_name(subject_key)} bo‘yicha natijalar</b>\n"]
+
     for teacher_key, teacher_name in SUBJECTS[subject_key]["teachers"].items():
-        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key = ? AND teacher_key = ?", (subject_key, teacher_key))
-        count = cursor.fetchone()[0]
-        percent = (count / subject_total * 100) if subject_total else 0
-        lines.append(f"<b>{teacher_name}</b>\n<code>{build_progress_bar(percent)}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n")
+        count = get_vote_count(subject_key, teacher_key)
+        percent = get_vote_percent(count, total_votes)
+        lines.append(
+            f"<b>{teacher_name}</b>\n"
+            f"<code>{build_progress_bar(percent)}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n"
+        )
+
     lines.append(f"🗳 <b>Ushbu kafedra ovozlari:</b> {subject_total}")
+    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
     lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
+
     text = "\n".join(lines)
-    return tr(user_id, text[:4000] + ("\n\n... qisqartirildi" if len(text) > 4000 else ""))
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n... qisqartirildi"
+    return tr(user_id, text)
+
 
 def get_rating_stats_text(user_id: int, subject_key: str | None = None) -> str:
     rows = rating_rows()
@@ -523,6 +561,15 @@ def get_users_text(user_id: int) -> str:
         lines.append(line)
     text = "\n\n".join(lines)
     return tr(user_id, text[:4000] + ("\n\n... qisqartirildi" if len(text) > 4000 else ""))
+
+
+def get_results_text_by_scope(user_id: int, scope: str) -> str:
+    scope = normalize_subject_key(scope)
+    if scope == "general":
+        return get_general_results_text(user_id)
+    if scope in SUBJECTS:
+        return get_subject_results_text(user_id, scope)
+    return tr(user_id, "Noto‘g‘ri bo‘lim.")
 
 # =========================
 # EXPORT
@@ -638,12 +685,16 @@ async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup: In
     except TelegramBadRequest as e:
         if "message is not modified" in str(e).lower():
             return
+        logging.error(f"edit_text xatosi: {e}")
         try:
             await callback.message.answer(text=text, parse_mode="HTML", reply_markup=reply_markup)
-        except Exception:
+        except Exception as e2:
+            logging.error(f"answer fallback xatosi: {e2}")
             return
-    except Exception:
+    except Exception as e:
+        logging.error(f"safe_edit_message umumiy xato: {e}")
         return
+
 
 # =========================
 # KEYBOARDS
@@ -721,6 +772,7 @@ def results_menu_keyboard_user(user_id: int) -> InlineKeyboardMarkup:
     kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home"))
     return kb.as_markup()
 
+
 def results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="📊 Umumiy", callback_data="show_results_admin:general"))
@@ -728,6 +780,7 @@ def results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
         kb.row(InlineKeyboardButton(text=subject_data["name"], callback_data=f"show_results_admin:{subject_key}"))
     kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
+
 
 def rating_results_menu_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
@@ -808,6 +861,8 @@ def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
 async def start_handler(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id)
+
+    # Agar avval ✅ Tekshirishdan o‘tgan bo‘lsa, qayta Telegram API tekshirilmaydi.
     if has_access(user_id):
         await message.answer(get_home_text(user_id), parse_mode="HTML", reply_markup=home_keyboard(user_id))
         return
@@ -818,6 +873,17 @@ async def start_handler(message: Message):
 
     grant_access(user_id)
     await message.answer(get_home_text(user_id), parse_mode="HTML", reply_markup=home_keyboard(user_id))
+
+
+@dp.message(Command("my_access"))
+async def my_access_handler(message: Message):
+    user_id = message.from_user.id
+    ensure_user(user_id)
+    if not is_admin(user_id):
+        return
+    cursor.execute("SELECT access_granted FROM user_prefs WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    await message.answer(f"access_granted: {row[0] if row else 'yo‘q'}")
 
 @dp.message(Command("check_channel"))
 async def check_channel_handler(message: Message):
@@ -899,11 +965,14 @@ async def admin_reset_handler(message: Message):
 @dp.callback_query(F.data == "go_home")
 async def go_home_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if has_access(user_id):
+    ensure_user(user_id)
+
+    if require_access_only(user_id):
         await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
     else:
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
     await callback.answer()
+
 
 @dp.callback_query(F.data == "help_info")
 async def help_info_handler(callback: CallbackQuery):
@@ -916,18 +985,33 @@ async def help_info_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not await check_user_subscription(user_id):
+    ensure_user(user_id)
+
+    ok = await check_user_subscription(user_id)
+    if not ok:
         reset_access(user_id)
+        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
+
     grant_access(user_id)
-    await safe_edit_message(callback, "✅ <b>Tekshiruv muvaffaqiyatli o‘tdi</b>\n\nEndi bosh menyudan kerakli bo‘limni tanlang:", home_keyboard(user_id))
+
+    if not has_access(user_id):
+        await callback.answer("Access saqlanmadi. Botni qayta ishga tushirib ko‘ring.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        "✅ <b>Obuna tasdiqlandi</b>\n\nEndi bosh menyudan bemalol foydalanishingiz mumkin:",
+        home_keyboard(user_id)
+    )
     await callback.answer("Tasdiqlandi")
+
 
 @dp.callback_query(F.data == "go_vote_panel")
 async def go_vote_panel_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id):
+    if not require_access_only(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
@@ -945,7 +1029,7 @@ async def go_vote_panel_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("subject:"))
 async def subject_select_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id):
+    if not require_access_only(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
@@ -967,7 +1051,7 @@ async def subject_select_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("vote:"))
 async def vote_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id):
+    if not require_access_only(user_id):
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
     if not is_voting_open():
@@ -1001,7 +1085,7 @@ async def vote_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "go_rating_panel")
 async def go_rating_panel_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id):
+    if not require_access_only(user_id):
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
@@ -1036,7 +1120,7 @@ async def rating_teacher_handler(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("rate:"))
 async def rate_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    if not has_access(user_id):
+    if not require_access_only(user_id):
         await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
         return
     parts = callback.data.split(":")
@@ -1064,18 +1148,38 @@ async def show_results_menu_user(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("show_results_user:"))
 async def show_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
-    scope = normalize_subject_key(callback.data.split(":", 1)[1])
-    text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-    await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
+    scope = callback.data.split(":", 1)[1].strip()
+    scope = normalize_subject_key(scope)
+
+    if scope != "general" and scope not in SUBJECTS:
+        await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        get_results_text_by_scope(user_id, scope),
+        results_keyboard_user(user_id, scope)
+    )
     await callback.answer()
+
 
 @dp.callback_query(F.data.startswith("refresh_results_user:"))
 async def refresh_results_user(callback: CallbackQuery):
     user_id = callback.from_user.id
-    scope = normalize_subject_key(callback.data.split(":", 1)[1])
-    text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-    await safe_edit_message(callback, text, results_keyboard_user(user_id, scope))
+    scope = callback.data.split(":", 1)[1].strip()
+    scope = normalize_subject_key(scope)
+
+    if scope != "general" and scope not in SUBJECTS:
+        await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        get_results_text_by_scope(user_id, scope),
+        results_keyboard_user(user_id, scope)
+    )
     await callback.answer("Yangilandi")
+
 
 # =========================
 # ADMIN CALLBACKS
@@ -1101,24 +1205,48 @@ async def admin_results_callback(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("show_results_admin:"))
 async def show_results_admin(callback: CallbackQuery):
     user_id = callback.from_user.id
+
     if not is_admin(user_id):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
-    scope = normalize_subject_key(callback.data.split(":", 1)[1])
-    text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-    await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
+
+    scope = callback.data.split(":", 1)[1].strip()
+    scope = normalize_subject_key(scope)
+
+    if scope != "general" and scope not in SUBJECTS:
+        await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        get_results_text_by_scope(user_id, scope),
+        results_keyboard_admin(user_id, scope)
+    )
     await callback.answer()
+
 
 @dp.callback_query(F.data.startswith("refresh_results_admin:"))
 async def refresh_results_admin_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
+
     if not is_admin(user_id):
         await callback.answer("Siz admin emassiz.", show_alert=True)
         return
-    scope = normalize_subject_key(callback.data.split(":", 1)[1])
-    text = get_general_results_text(user_id) if scope == "general" else get_subject_results_text(user_id, scope)
-    await safe_edit_message(callback, text, results_keyboard_admin(user_id, scope))
+
+    scope = callback.data.split(":", 1)[1].strip()
+    scope = normalize_subject_key(scope)
+
+    if scope != "general" and scope not in SUBJECTS:
+        await callback.answer("Noto‘g‘ri bo‘lim.", show_alert=True)
+        return
+
+    await safe_edit_message(
+        callback,
+        get_results_text_by_scope(user_id, scope),
+        results_keyboard_admin(user_id, scope)
+    )
     await callback.answer("Yangilandi")
+
 
 @dp.callback_query(F.data == "admin_rating_stats")
 async def admin_rating_stats_callback(callback: CallbackQuery):

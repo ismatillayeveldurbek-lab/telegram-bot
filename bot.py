@@ -4,6 +4,7 @@ import asyncio
 import logging
 import sqlite3
 from datetime import datetime
+from html import escape
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatMemberStatus
@@ -22,6 +23,13 @@ try:
     from openpyxl import Workbook
 except ImportError:
     Workbook = None
+
+try:
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt
+except ImportError:
+    Document = None
 
 # =========================
 # SOZLAMALAR
@@ -43,6 +51,8 @@ DB_NAME = os.path.join(DATA_DIR, "votes.db")
 EXPORT_FILE = os.path.join(DATA_DIR, "votes_export.csv")
 VOTES_XLSX_FILE = os.path.join(DATA_DIR, "votes_export.xlsx")
 RATING_XLSX_FILE = os.path.join(DATA_DIR, "rating_export.xlsx")
+COMPLAINTS_WORD_FILE = os.path.join(DATA_DIR, "shikoyat_takliflar.docx")
+COMPLAINTS_DOCX_FILE = os.path.join(DATA_DIR, "complaints_export.docx")
 
 SUBJECTS = {
     "s1": {
@@ -147,6 +157,7 @@ dp = Dispatcher()
 conn = sqlite3.connect(DB_NAME, check_same_thread=False)
 cursor = conn.cursor()
 db_lock = asyncio.Lock()
+WAITING_COMPLAINT_TEXT = set()
 
 # =========================
 # LOTIN ONLY
@@ -196,6 +207,16 @@ def init_db():
             rating TEXT NOT NULL CHECK(rating IN ('like', 'dislike')),
             rated_at TEXT,
             PRIMARY KEY (user_id, subject_key, teacher_key)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS complaints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            full_name TEXT,
+            username TEXT,
+            message_text TEXT NOT NULL,
+            created_at TEXT
         )
     """)
     conn.commit()
@@ -380,6 +401,118 @@ def get_vote_count(subject_key: str, teacher_key: str) -> int:
 def get_vote_percent(count: int, denominator: int) -> float:
     return (count / denominator * 100) if denominator > 0 else 0.0
 
+def save_complaint(user_id: int, full_name: str, username: str, message_text: str):
+    cursor.execute("""
+        INSERT INTO complaints (user_id, full_name, username, message_text, created_at)
+        VALUES (?, ?, ?, ?, ?)
+    """, (
+        user_id,
+        full_name,
+        username,
+        message_text,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ))
+    conn.commit()
+
+
+def get_complaints_rows(limit: int | None = None):
+    sql = """
+        SELECT id, user_id, full_name, username, message_text, created_at
+        FROM complaints
+        ORDER BY id DESC
+    """
+    params = ()
+    if limit:
+        sql += " LIMIT ?"
+        params = (limit,)
+    cursor.execute(sql, params)
+    return cursor.fetchall()
+
+
+def get_complaints_count() -> int:
+    cursor.execute("SELECT COUNT(*) FROM complaints")
+    return cursor.fetchone()[0]
+
+
+def get_complaints_text(user_id: int) -> str:
+    rows = get_complaints_rows(limit=30)
+    total = get_complaints_count()
+
+    if not rows:
+        return tr(user_id, "📩 <b>Shikoyat va takliflar</b>\n\nHali hech qanday xabar kelmagan.")
+
+    lines = [f"📩 <b>Shikoyat va takliflar</b>\n\nJami: {total} ta\nOxirgi {len(rows)} ta xabar:\n"]
+    for i, (cid, uid, full_name, username, message_text, created_at) in enumerate(rows, start=1):
+        safe_name = escape(full_name or "Noma’lum")
+        safe_username = escape(username or "")
+        safe_message = escape(message_text or "")
+        line = f"{i}. <b>{safe_name}</b>"
+        if safe_username:
+            line += f" (@{safe_username})"
+        line += f"\n   ID: <code>{uid}</code>"
+        line += f"\n   Sana: {escape(created_at or '')}"
+        line += f"\n   Xabar: {safe_message}"
+        lines.append(line)
+
+    text = "\n\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n... qisqartirildi"
+    return tr(user_id, text)
+
+
+def export_complaints_to_docx() -> str:
+    if Document is None:
+        path = os.path.join(DATA_DIR, "complaints_export.txt")
+        rows = get_complaints_rows()
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("Shikoyat va takliflar\n")
+            f.write(f"Jami: {len(rows)} ta\n\n")
+            for i, (cid, uid, full_name, username, message_text, created_at) in enumerate(rows, start=1):
+                f.write(f"{i}. {full_name or 'Noma’lum'} (@{username or ''})\n")
+                f.write(f"ID: {uid}\nSana: {created_at or ''}\nXabar: {message_text or ''}\n\n")
+        return path
+
+    rows = get_complaints_rows()
+    doc = Document()
+
+    title = doc.add_heading("Shikoyat va takliflar", 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    p = doc.add_paragraph()
+    p.add_run("Jami xabarlar soni: ").bold = True
+    p.add_run(str(len(rows)))
+
+    p = doc.add_paragraph()
+    p.add_run("Yaratilgan sana: ").bold = True
+    p.add_run(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+    if not rows:
+        doc.add_paragraph("Hali hech qanday shikoyat yoki taklif kelmagan.")
+    else:
+        table = doc.add_table(rows=1, cols=6)
+        table.style = "Table Grid"
+        headers = ["№", "F.I.Sh", "Username", "Telegram ID", "Sana", "Xabar"]
+        for idx, header in enumerate(headers):
+            run = table.rows[0].cells[idx].paragraphs[0].add_run(header)
+            run.bold = True
+
+        for i, (cid, uid, full_name, username, message_text, created_at) in enumerate(rows, start=1):
+            cells = table.add_row().cells
+            cells[0].text = str(i)
+            cells[1].text = full_name or "Noma’lum"
+            cells[2].text = f"@{username}" if username else ""
+            cells[3].text = str(uid)
+            cells[4].text = created_at or ""
+            cells[5].text = message_text or ""
+
+    for paragraph in doc.paragraphs:
+        for run in paragraph.runs:
+            run.font.name = "Arial"
+            run.font.size = Pt(11)
+
+    doc.save(COMPLAINTS_DOCX_FILE)
+    return COMPLAINTS_DOCX_FILE
+
 def get_subscription_required_alert(user_id: int) -> str:
     return tr(user_id, "Avval Telegram kanalga obuna bo‘ling va ✅ Tekshirish tugmasini bosing.")
 
@@ -447,6 +580,19 @@ def get_rate_text(user_id: int, subject_key: str, teacher_key: str) -> str:
         f"Jami: {total} ta\n\n"
         f"Bahoni tanlang yoki o‘zgartiring:"
     )
+
+def get_complaint_intro_text(user_id: int) -> str:
+    return tr(
+        user_id,
+        "📩 <b>Shikoyat va takliflar</b>\n\n"
+        "Shikoyat, taklif yoki murojaatingizni bitta xabar qilib yozing.\n"
+        "Xabaringiz admin panelda F.I.Sh, username, Telegram ID va sana bilan ko‘rinadi.\n\n"
+        "Bekor qilish uchun <b>❌ Bekor qilish</b> tugmasini bosing."
+    )
+
+
+def get_complaint_saved_text(user_id: int) -> str:
+    return tr(user_id, "✅ <b>Xabaringiz qabul qilindi.</b>\n\nRahmat, murojaatingiz adminlarga yuborildi.")
 
 def get_results_menu_text(user_id: int, is_admin_view: bool = False) -> str:
     title = "Admin natijalar bo‘limi" if is_admin_view else "Natijalar bo‘limi"
@@ -686,6 +832,59 @@ def export_rating_to_excel() -> str:
     wb.save(RATING_XLSX_FILE)
     return RATING_XLSX_FILE
 
+
+def export_complaints_to_word() -> str:
+    """
+    Admin panel uchun shikoyat va takliflarni Word faylga chiqaradi.
+    python-docx o‘rnatilmagan bo‘lsa, .txt fayl yaratadi.
+    """
+    cursor.execute("""
+        SELECT user_id, full_name, username, message_text, created_at
+        FROM complaints
+        ORDER BY created_at DESC
+    """)
+    rows = cursor.fetchall()
+
+    if Document is None:
+        txt_path = os.path.join(DATA_DIR, "shikoyat_takliflar.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write("Shikoyat va takliflar\n")
+            f.write("=" * 30 + "\n\n")
+            if not rows:
+                f.write("Hali shikoyat yoki taklif yo‘q.\n")
+            for i, (user_id, full_name, username, message_text, created_at) in enumerate(rows, 1):
+                f.write(f"{i}. Foydalanuvchi: {full_name or 'Noma’lum'}\n")
+                f.write(f"   Username: @{username}\n" if username else "   Username: yo‘q\n")
+                f.write(f"   ID: {user_id}\n")
+                f.write(f"   Sana: {created_at or ''}\n")
+                f.write(f"   Matn: {message_text or ''}\n")
+                f.write("-" * 30 + "\n")
+        return txt_path
+
+    doc = Document()
+    doc.add_heading("Shikoyat va takliflar", level=1)
+
+    if not rows:
+        doc.add_paragraph("Hali shikoyat yoki taklif yo‘q.")
+    else:
+        table = doc.add_table(rows=1, cols=6)
+        table.style = "Table Grid"
+        headers = ["№", "F.I.Sh", "Username", "User ID", "Sana", "Matn"]
+        for idx, header in enumerate(headers):
+            table.rows[0].cells[idx].text = header
+
+        for i, (user_id, full_name, username, message_text, created_at) in enumerate(rows, 1):
+            cells = table.add_row().cells
+            cells[0].text = str(i)
+            cells[1].text = full_name or "Noma’lum"
+            cells[2].text = f"@{username}" if username else ""
+            cells[3].text = str(user_id)
+            cells[4].text = created_at or ""
+            cells[5].text = message_text or ""
+
+    doc.save(COMPLAINTS_WORD_FILE)
+    return COMPLAINTS_WORD_FILE
+
 # =========================
 # SUBSCRIPTION
 # =========================
@@ -737,6 +936,7 @@ def home_keyboard(user_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="⭐️ O‘qituvchilarni baholash", callback_data="go_rating_panel")
         )
         kb.row(InlineKeyboardButton(text="📊 Natijalar", callback_data="show_results_menu_user"))
+        kb.row(InlineKeyboardButton(text="📩 Shikoyat va takliflar", callback_data="go_complaint_panel"))
     else:
         kb.row(InlineKeyboardButton(text="✅ Obunani tekshirish", callback_data="check_subscription"))
     kb.row(InlineKeyboardButton(text="ℹ️ Yordam", callback_data="help_info"))
@@ -859,6 +1059,11 @@ def admin_panel_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb.row(InlineKeyboardButton(text="⭐️ Baholash foizlari", callback_data="admin_rating_stats"))
     kb.row(InlineKeyboardButton(text="🏆 TOP reytinglar", callback_data="admin_top_ratings"))
     kb.row(InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users"))
+    kb.row(InlineKeyboardButton(text="📄 Word shikoyatlar", callback_data="admin_complaints_word"))
+    kb.row(
+        InlineKeyboardButton(text="📩 Shikoyat/takliflar", callback_data="admin_complaints"),
+        InlineKeyboardButton(text="📄 Word shikoyatlar", callback_data="admin_export_complaints_docx")
+    )
     kb.row(
         InlineKeyboardButton(text="📁 Excel ovozlar", callback_data="admin_export_votes_excel"),
         InlineKeyboardButton(text="📁 Excel rating", callback_data="admin_export_rating_excel")
@@ -877,6 +1082,22 @@ def reset_confirm_keyboard(user_id: int, mode: str = "votes") -> InlineKeyboardM
     kb = InlineKeyboardBuilder()
     yes_cb = "admin_reset_votes" if mode == "votes" else "admin_reset_rating"
     kb.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_reset"), InlineKeyboardButton(text="✅ Ha, o‘chirish", callback_data=yes_cb))
+    kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
+    return kb.as_markup()
+
+def complaint_cancel_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_complaint"))
+    kb.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home"))
+    return kb.as_markup()
+
+
+def complaints_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_admin_complaints"),
+        InlineKeyboardButton(text="📄 Word", callback_data="admin_export_complaints_docx")
+    )
     kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
 
@@ -1020,46 +1241,47 @@ async def go_home_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
     ensure_user(user_id)
 
-    # Ichki menyulardan qaytganda avval DBdagi access holatiga ishonamiz.
-    # Agar access bor bo‘lsa, Telegram kanalni qayta tekshirmaymiz.
-    if has_access(user_id):
-        await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
-        await callback.answer()
-        return
-
-    # Faqat access yo‘q bo‘lsa, tekshirish tugmasini ko‘rsatamiz.
-    await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-    await callback.answer()
-
-
-@dp.callback_query(F.data == "back_from_help")
-async def back_from_help_handler(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    ensure_user(user_id)
-
-    # Yordamdan qaytishda faqat access_granted tekshiriladi.
-    # Telegram API qayta chaqirilmaydi va reset_access ishlatilmaydi.
-    if has_access(user_id):
+    if require_access_only(user_id):
         await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
     else:
         await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
-
     await callback.answer()
-
 
 
 @dp.callback_query(F.data == "help_info")
 async def help_info_handler(callback: CallbackQuery):
     user_id = callback.from_user.id
-    ensure_user(user_id)
-
     kb = InlineKeyboardBuilder()
-    # Yordamdan qaytish uchun alohida callback.
-    # Bu foydalanuvchini tasodifan obuna oynasiga qaytarib yubormaydi.
-    kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_from_help"))
-
+    kb.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="go_home"))
     await safe_edit_message(callback, get_help_text(user_id), kb.as_markup())
     await callback.answer()
+
+@dp.callback_query(F.data == "go_complaint_panel")
+async def go_complaint_panel_handler(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    ensure_user(user_id)
+
+    if not has_access(user_id):
+        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+        await callback.answer(get_subscription_required_alert(user_id), show_alert=True)
+        return
+
+    WAITING_COMPLAINT_TEXT.add(user_id)
+    await safe_edit_message(callback, get_complaint_intro_text(user_id), complaint_cancel_keyboard(user_id))
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "cancel_complaint")
+async def cancel_complaint_handler(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    WAITING_COMPLAINT_TEXT.discard(user_id)
+
+    if has_access(user_id):
+        await safe_edit_message(callback, get_home_text(user_id), home_keyboard(user_id))
+    else:
+        await safe_edit_message(callback, get_welcome_text(user_id), subscription_keyboard(user_id))
+    await callback.answer("Bekor qilindi")
+
 
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_handler(callback: CallbackQuery):
@@ -1393,6 +1615,43 @@ async def admin_top_ratings_callback(callback: CallbackQuery):
     await safe_edit_message(callback, get_top_ratings_text(user_id), kb.as_markup())
     await callback.answer()
 
+@dp.callback_query(F.data == "admin_complaints")
+async def admin_complaints_callback(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if not is_admin(user_id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await safe_edit_message(callback, get_complaints_text(user_id), complaints_keyboard_admin(user_id))
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "refresh_admin_complaints")
+async def refresh_admin_complaints_callback(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if not is_admin(user_id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    await safe_edit_message(callback, get_complaints_text(user_id), complaints_keyboard_admin(user_id))
+    await callback.answer("Yangilandi")
+
+
+@dp.callback_query(F.data == "admin_export_complaints_docx")
+async def admin_export_complaints_docx_callback(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if not is_admin(user_id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    filename = export_complaints_to_docx()
+    await callback.message.answer_document(
+        FSInputFile(filename),
+        caption="📄 Shikoyat va takliflar Word fayl ko‘rinishida."
+    )
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "admin_users")
 async def admin_users_callback(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -1410,6 +1669,22 @@ async def refresh_admin_users(callback: CallbackQuery):
         return
     await safe_edit_message(callback, get_users_text(user_id), users_keyboard_admin(user_id))
     await callback.answer("Yangilandi")
+
+
+@dp.callback_query(F.data == "admin_complaints_word")
+async def admin_complaints_word_callback(callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    if not is_admin(user_id):
+        await callback.answer("Siz admin emassiz.", show_alert=True)
+        return
+
+    filename = export_complaints_to_word()
+    await callback.message.answer_document(
+        FSInputFile(filename),
+        caption="📄 Shikoyat va takliflar Word fayli"
+    )
+    await callback.answer("Word fayl tayyorlandi")
 
 @dp.callback_query(F.data == "admin_export_votes_excel")
 async def admin_export_votes_excel_callback(callback: CallbackQuery):
@@ -1498,6 +1773,11 @@ async def admin_reset_rating_callback(callback: CallbackQuery):
     await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
     await callback.answer("Rating reset qilindi!")
 
+
+@dp.callback_query(F.data == "admin_export_complaints_word")
+async def admin_export_complaints_word_alias(callback: CallbackQuery):
+    await admin_complaints_word_callback(callback)
+
 # eski callback nomlari ishlashi uchun
 @dp.callback_query(F.data == "admin_export")
 async def admin_export_callback(callback: CallbackQuery):
@@ -1518,8 +1798,30 @@ async def admin_reset_old_callback(callback: CallbackQuery):
 async def text_handler(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id)
+
+    if user_id in WAITING_COMPLAINT_TEXT:
+        text = (message.text or "").strip()
+        if not text:
+            await message.answer("Bo‘sh xabar qabul qilinmaydi. Iltimos, matn yozing.")
+            return
+
+        WAITING_COMPLAINT_TEXT.discard(user_id)
+        save_complaint(
+            user_id=user_id,
+            full_name=message.from_user.full_name or "Noma’lum",
+            username=message.from_user.username or "",
+            message_text=text,
+        )
+        await message.answer(
+            get_complaint_saved_text(user_id),
+            parse_mode="HTML",
+            reply_markup=home_keyboard(user_id)
+        )
+        return
+
     if message.text and message.text.lower() == "results":
         await message.answer(get_results_menu_text(user_id, False), parse_mode="HTML", reply_markup=results_menu_keyboard_user(user_id))
+
 
 # =========================
 # MAIN

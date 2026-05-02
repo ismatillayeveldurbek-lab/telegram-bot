@@ -310,10 +310,6 @@ def reset_ratings():
     cursor.execute("DELETE FROM teacher_ratings")
     conn.commit()
 
-def reset_complaints():
-    cursor.execute("DELETE FROM complaints")
-    conn.commit()
-
 def get_subject_name(subject_key: str) -> str:
     subject_key = normalize_subject_key(subject_key)
     return SUBJECTS.get(subject_key, {}).get("name", subject_key)
@@ -1063,9 +1059,10 @@ def admin_panel_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb.row(InlineKeyboardButton(text="⭐️ Baholash foizlari", callback_data="admin_rating_stats"))
     kb.row(InlineKeyboardButton(text="🏆 TOP reytinglar", callback_data="admin_top_ratings"))
     kb.row(InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users"))
+    kb.row(InlineKeyboardButton(text="📄 Word shikoyatlar", callback_data="admin_complaints_word"))
     kb.row(
-        InlineKeyboardButton(text="✉️ Shikoyat/takliflar", callback_data="admin_complaints"),
-        InlineKeyboardButton(text="🧹 Shikoyatlarni tozalash", callback_data="admin_reset_complaints_confirm")
+        InlineKeyboardButton(text="📩 Shikoyat/takliflar", callback_data="admin_complaints"),
+        InlineKeyboardButton(text="📄 Word shikoyatlar", callback_data="admin_export_complaints_docx")
     )
     kb.row(
         InlineKeyboardButton(text="📁 Excel ovozlar", callback_data="admin_export_votes_excel"),
@@ -1081,34 +1078,27 @@ def admin_panel_keyboard(user_id: int) -> InlineKeyboardMarkup:
     )
     return kb.as_markup()
 
-
 def reset_confirm_keyboard(user_id: int, mode: str = "votes") -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-
-    if mode == "votes":
-        yes_cb = "admin_reset_votes"
-    elif mode == "rating":
-        yes_cb = "admin_reset_rating"
-    elif mode == "complaints":
-        yes_cb = "admin_reset_complaints"
-    else:
-        yes_cb = "cancel_reset"
-
-    kb.row(
-        InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_reset"),
-        InlineKeyboardButton(text="✅ Ha, o‘chirish", callback_data=yes_cb)
-    )
+    yes_cb = "admin_reset_votes" if mode == "votes" else "admin_reset_rating"
+    kb.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_reset"), InlineKeyboardButton(text="✅ Ha, o‘chirish", callback_data=yes_cb))
     kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
 
+def complaint_cancel_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_complaint"))
+    kb.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_home"))
+    return kb.as_markup()
 
 
 def complaints_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_admin_complaints"),
-        InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel")
+        InlineKeyboardButton(text="📄 Word", callback_data="admin_export_complaints_docx")
     )
+    kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
 
 def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
@@ -1753,34 +1743,6 @@ async def admin_reset_rating_confirm_callback(callback: CallbackQuery):
         return
     await safe_edit_message(callback, "⚠️ <b>Diqqat!</b>\n\nBarcha rating baholari o‘chiriladi.\nDavom etasizmi?", reset_confirm_keyboard(user_id, "rating"))
     await callback.answer()
-
-
-@dp.callback_query(F.data == "admin_reset_complaints_confirm")
-async def admin_reset_complaints_confirm_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer("Siz admin emassiz.", show_alert=True)
-        return
-
-    await safe_edit_message(
-        callback,
-        "⚠️ <b>Diqqat!</b>\n\nBarcha shikoyat va takliflar o‘chiriladi.\nDavom etasizmi?",
-        reset_confirm_keyboard(user_id, "complaints")
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "admin_reset_complaints")
-async def admin_reset_complaints_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-
-    if not is_admin(user_id):
-        await callback.answer("Siz admin emassiz.", show_alert=True)
-        return
-
-    reset_complaints()
-    await safe_edit_message(callback, get_admin_panel_text(user_id), admin_panel_keyboard(user_id))
-    await callback.answer("Shikoyat va takliflar tozalandi!")
 
 @dp.callback_query(F.data == "cancel_reset")
 async def cancel_reset_callback(callback: CallbackQuery):

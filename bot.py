@@ -1059,11 +1059,7 @@ def admin_panel_keyboard(user_id: int) -> InlineKeyboardMarkup:
     kb.row(InlineKeyboardButton(text="⭐️ Baholash foizlari", callback_data="admin_rating_stats"))
     kb.row(InlineKeyboardButton(text="🏆 TOP reytinglar", callback_data="admin_top_ratings"))
     kb.row(InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users"))
-    kb.row(InlineKeyboardButton(text="📄 Word shikoyatlar", callback_data="admin_complaints_word"))
-    kb.row(
-        InlineKeyboardButton(text="📩 Shikoyat/takliflar", callback_data="admin_complaints"),
-        InlineKeyboardButton(text="📄 Word shikoyatlar", callback_data="admin_export_complaints_docx")
-    )
+    kb.row(InlineKeyboardButton(text="📩 Shikoyat/takliflar", callback_data="admin_complaints"))
     kb.row(
         InlineKeyboardButton(text="📁 Excel ovozlar", callback_data="admin_export_votes_excel"),
         InlineKeyboardButton(text="📁 Excel rating", callback_data="admin_export_rating_excel")
@@ -1077,6 +1073,7 @@ def admin_panel_keyboard(user_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🗑 Reset rating", callback_data="admin_reset_rating_confirm")
     )
     return kb.as_markup()
+
 
 def reset_confirm_keyboard(user_id: int, mode: str = "votes") -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
@@ -1100,6 +1097,7 @@ def complaints_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     )
     kb.row(InlineKeyboardButton(text="⬅️ Admin panel", callback_data="back_admin_panel"))
     return kb.as_markup()
+
 
 def users_keyboard_admin(user_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()

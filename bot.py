@@ -12,8 +12,7 @@ from aiogram.filters import Command
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup,
-    InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton,
-    FSInputFile,
+    InlineKeyboardButton, FSInputFile, ReplyKeyboardMarkup, KeyboardButton,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
@@ -23,8 +22,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE")
 CHANNEL_USERNAME = "@QASHQADARYOPMMrasmiy"
 
-ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "5298063089,7361393654")
-ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip().isdigit()]
+ADMIN_IDS = [5298063089, 7361393654]
 
 FACEBOOK_URL = "https://www.facebook.com/share/1E4ZVePTh4/"
 INSTAGRAM_URL = "https://www.instagram.com/pedagogikmahorat"
@@ -160,7 +158,7 @@ def init_db():
 init_db()
 
 # =========================
-# DB FUNCTIONS (to'liq)
+# DB FUNCTIONS
 # =========================
 def get_setting(key: str, default: str = "") -> str:
     cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
@@ -250,74 +248,39 @@ def get_all_teachers_flat():
 def get_subscription_required_alert(user_id: int) -> str:
     return "Avval Telegram kanal, Instagram va Facebook sahifalarga obuna bo'ling."
 
-def get_general_results_text(user_id: int) -> str:
-    total_votes = get_total_votes()
-    lines = ["📊 <b>Umumiy natijalar</b>\n"]
-    for subject_key, teacher_key, teacher_name in get_all_teachers_flat():
-        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key = ? AND teacher_key = ?", (subject_key, teacher_key))
-        count = cursor.fetchone()[0]
-        percent = (count / total_votes * 100) if total_votes > 0 else 0
-        bar = build_progress_bar(percent)
-        lines.append(f"<b>{teacher_name}</b> — {get_subject_name(subject_key)}\n<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n")
-    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
-    text = "\n".join(lines)
-    return text if len(text) <= 4000 else text[:4000] + "\n\n... qisqartirildi"
+# TRANSLIT (to'liq)
+def latin_to_cyrillic_text(text: str) -> str:
+    pairs = [("O‘","Ў"), ("o‘","ў"), ("G‘","Ғ"), ("g‘","ғ"), ("O'","Ў"), ("o'","ў"), ("G'","Ғ"), ("g'","ғ"),
+             ("Sh","Ш"), ("sh","ш"), ("Ch","Ч"), ("ch","ч"), ("Ya","Я"), ("ya","я"), ("Yo","Ё"), ("yo","ё"),
+             ("Yu","Ю"), ("yu","ю"), ("Ts","Ц"), ("ts","ц")]
+    for old, new in pairs: text = text.replace(old, new)
+    table = str.maketrans({"A":"А","a":"а","B":"Б","b":"б","D":"Д","d":"д","E":"Е","e":"е","F":"Ф","f":"ф","G":"Г","g":"г",
+                           "H":"Ҳ","h":"ҳ","I":"И","i":"и","J":"Ж","j":"ж","K":"К","k":"к","L":"Л","l":"l","M":"М","m":"м",
+                           "N":"Н","n":"н","O":"О","o":"о","P":"П","p":"п","Q":"Қ","q":"q","R":"Р","r":"r","S":"С","s":"с",
+                           "T":"Т","t":"t","U":"У","u":"u","V":"В","v":"v","X":"Х","x":"х","Y":"Й","y":"й","Z":"З","z":"з",
+                           "`":"ъ","’":"ъ","'":"ъ"})
+    return text.translate(table)
 
-def get_subject_results_text(user_id: int, subject_key: str) -> str:
-    if subject_key not in SUBJECTS: return "Noto'g'ri fan."
-    total_votes = get_total_votes()
-    lines = [f"📊 <b>{get_subject_name(subject_key)} bo'yicha natijalar</b>\n"]
-    for teacher_key, teacher_name in SUBJECTS[subject_key]["teachers"].items():
-        cursor.execute("SELECT COUNT(*) FROM votes WHERE subject_key = ? AND teacher_key = ?", (subject_key, teacher_key))
-        count = cursor.fetchone()[0]
-        percent = (count / total_votes * 100) if total_votes > 0 else 0
-        bar = build_progress_bar(percent)
-        lines.append(f"<b>{teacher_name}</b>\n<code>{bar}</code>  <b>{percent:.1f}%</b>  •  {count} ta\n")
-    lines.append(f"🗳 <b>Jami ovozlar:</b> {total_votes}")
-    lines.append(f"{'🟢' if is_voting_open() else '🔴'} <b>Holat:</b> {'Ochiq' if is_voting_open() else 'Yopiq'}")
-    text = "\n".join(lines)
-    return text if len(text) <= 4000 else text[:4000] + "\n\n... qisqartirildi"
+def cyrillic_to_latin_text(text: str) -> str:
+    pairs = [("Ў","O'"), ("ў","o'"), ("Ғ","G'"), ("ғ","g'"), ("Ш","Sh"), ("ш","sh"), ("Ч","Ch"), ("ч","ch"),
+             ("Я","Ya"), ("я","ya"), ("Ё","Yo"), ("ё","yo"), ("Ю","Yu"), ("ю","yu"), ("Ц","Ts"), ("ц","ts")]
+    for old, new in pairs: text = text.replace(old, new)
+    table = str.maketrans({"А":"A","а":"a","Б":"B","б":"b","Д":"D","д":"d","Е":"E","е":"e","Ф":"F","ф":"f","Г":"G","г":"g",
+                           "Ҳ":"H","ҳ":"h","И":"I","i":"i","Ж":"J","ж":"j","К":"K","к":"k","Л":"L","l":"l","М":"M","m":"м",
+                           "Н":"N","n":"n","О":"O","о":"o","П":"P","p":"p","Қ":"Q","q":"q","Р":"R","r":"r","С":"S","s":"s",
+                           "Т":"T","t":"t","U":"U","u":"u","В":"V","v":"v","Х":"X","х":"x","Й":"Y","й":"y","З":"Z","з":"z",
+                           "Ъ":"'","ъ":"'","Ь":"","ь":""})
+    return text.translate(table)
 
-def get_users_text(user_id: int) -> str:
-    cursor.execute("SELECT user_id, full_name, username, subject_key, teacher_key, voted_at FROM votes ORDER BY voted_at DESC")
-    rows = cursor.fetchall()
-    if not rows: return "👥 Hali hech kim ovoz bermagan."
-    lines = [f"👥 <b>Kim kimga ovoz berdi</b>\n\nJami: {len(rows)} ta foydalanuvchi\n"]
-    for i, (uid, full_name, username, subject_key, teacher_key, voted_at) in enumerate(rows, start=1):
-        safe_name = full_name or "Noma'lum"
-        line = f"{i}. <b>{safe_name}</b>"
-        if username: line += f" (@{username})"
-        line += f"\n   → Fan: {get_subject_name(subject_key)}"
-        line += f"\n   → O'qituvchi: {get_teacher_name(subject_key, teacher_key)}"
-        line += f"\n   → ID: <code>{uid}</code>"
-        if voted_at: line += f"\n   → {voted_at}"
-        lines.append(line)
-    text = "\n\n".join(lines)
-    return text if len(text) <= 4000 else text[:4000] + "\n\n... qisqartirildi"
-
-def export_votes_to_csv() -> str:
-    cursor.execute("SELECT user_id, full_name, username, subject_key, teacher_key, voted_at FROM votes ORDER BY voted_at DESC")
-    rows = cursor.fetchall()
-    with open(EXPORT_FILE, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        writer.writerow(["User ID", "Full Name", "Username", "Subject", "Teacher", "Voted At"])
-        for user_id, full_name, username, subject_key, teacher_key, voted_at in rows:
-            writer.writerow([user_id, full_name or "", username or "", get_subject_name(subject_key), get_teacher_name(subject_key, teacher_key), voted_at or ""])
-    return EXPORT_FILE
-
-async def check_user_subscription(user_id: int) -> bool:
-    try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in {ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED}
-    except:
-        return False
-
-async def safe_edit_message(callback: CallbackQuery, text: str, reply_markup=None):
-    try:
-        await callback.message.edit_text(text=text, parse_mode="HTML", reply_markup=reply_markup)
-    except:
-        pass
+def translit_html_safe(text: str, script: str) -> str:
+    parts = re.split(r"(<[^>]+>)", text)
+    result = []
+    for part in parts:
+        if part.startswith("<") and part.endswith(">"):
+            result.append(part)
+        else:
+            result.append(latin_to_cyrillic_text(part) if script == "cyrillic" else cyrillic_to_latin_text(part))
+    return "".join(result)
 
 # =========================
 # BOT PANELI (Pastdan chiqadigan tugmalar)
@@ -338,8 +301,7 @@ async def start_handler(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id)
     await message.answer(
-        "🚀 Xush kelibsiz!\n\n"
-        "Botdan foydalanish uchun pastdagi tugmalardan foydalaning yoki quyidagi buyruqlarni bosing:\n"
+        "🚀 Xush kelibsiz!\n\nPastdagi tugmalardan foydalaning yoki quyidagi buyruqlarni bosing:\n"
         "• /start - Boshlash\n"
         "• /results - Natijalarni ko‘rish\n"
         "• /admin - Admin paneli",

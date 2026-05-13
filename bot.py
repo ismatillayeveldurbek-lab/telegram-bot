@@ -36,7 +36,7 @@ except ImportError:
 # SOZLAMALAR
 # =========================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8760253406:AAFn7DlQEUhKF4LlcAvwI0mjK4Dp_DMdsTE")
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@@Qashqadaryo_PMM")
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@Qashqadaryo_PMM")
 CHANNEL_URL = "https://t.me/@Qashqadaryo_PMM"
 
 ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "5298063089,7361393654")
